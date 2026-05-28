@@ -1,0 +1,12 @@
+# Prometheus Scrape Config for Bayora
+scrape_configs:
+  - job_name: 'bayora-services'
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace]
+        action: keep
+        regex: (red-team|blue-team|llm-sandbox|session-manager)
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['session-manager:8443']

@@ -1,0 +1,88 @@
+name: Deploy Bayora to AWS EKS
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    name: Build, Provision and Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate Encryption Keys
+        run: python bayora/infra/scripts/generate-keys.py
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/bayora-microservices:latest
+            ghcr.io/${{ github.repository_owner }}/bayora-microservices:${{ github.sha }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform Init & Apply
+        working-directory: bayora/infra/terraform
+        run: |
+          terraform init
+          terraform apply -auto-approve
+
+      - name: Update Kubeconfig
+        run: aws eks update-kubeconfig --region us-west-2 --name bayora-eks
+
+      - name: Deploy to Kubernetes
+        run: |
+          # Replace local image with GHCR versioned image
+          sed -i "s|image: bayora/microservices:latest|image: ghcr.io/${{ github.repository_owner }}/bayora-microservices:${{ github.sha }}|g" bayora/infra/k8s/namespaces/apps.yaml
+          
+          # Install Strimzi Kafka
+          kubectl apply -f https://strimzi.io/install/latest?namespace=kafka
+          kubectl apply -f bayora/infra/k8s/namespaces/kafka.yaml
+          
+          # Apply K8s Manifests
+          kubectl apply -f bayora/infra/k8s/namespaces/namespaces.yaml
+          kubectl apply -f bayora/infra/k8s/namespaces/service-accounts.yaml
+          kubectl apply -f bayora/infra/k8s/namespaces/secrets-rbac.yaml
+          kubectl apply -f bayora/infra/k8s/namespaces/secrets.yaml
+          kubectl apply -f bayora/infra/k8s/network-policies/
+          kubectl apply -f bayora/infra/gvisor/runtimeclass.yaml
+          kubectl apply -f bayora/infra/k8s/istio/
+          
+          # Deploy Microservices
+          kubectl apply -f bayora/infra/k8s/namespaces/apps.yaml

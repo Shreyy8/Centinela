@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+bayora/infra/k8s/namespaces/secrets.yaml
+.terraform/
+*.tfstate
+*.tfstate.backup

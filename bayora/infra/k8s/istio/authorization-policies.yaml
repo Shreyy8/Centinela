@@ -1,0 +1,39 @@
+# Authorization Policies for Bayora
+# Enforce that only specific service accounts can talk to session-manager
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: session-manager-authz
+  namespace: session-manager
+spec:
+  selector:
+    matchLabels:
+      app: session-manager
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/red-team/sa/red-team-sa"
+        - "cluster.local/ns/blue-team/sa/blue-team-sa"
+---
+# Kafka Authorization Policy
+# Only allow session-manager, red-team, blue-team, llm-sandbox to access Kafka
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: kafka-authz
+  namespace: kafka
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/session-manager/sa/session-manager-sa"
+        - "cluster.local/ns/red-team/sa/red-team-sa"
+        - "cluster.local/ns/blue-team/sa/blue-team-sa"
+        - "cluster.local/ns/llm-sandbox/sa/llm-sandbox-sa"

@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: llm-inference-session-{{SESSION_ID}}
+  namespace: llm-sandbox
+  labels:
+    app: llm-inference
+    session_id: "{{SESSION_ID}}"
+spec:
+  ttlSecondsAfterFinished: 60
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: llm-inference
+        session_id: "{{SESSION_ID}}"
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: "localhost/seccomp-profile.json"
+    spec:
+      runtimeClassName: gvisor-sandboxed
+      serviceAccountName: llm-sandbox-sa
+      restartPolicy: Never
+      containers:
+      - name: llm-proxy
+        image: bayora/llm-proxy:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: SESSION_ID
+          value: "{{SESSION_ID}}"
+        - name: KAFKA_BROKER
+          value: "bayora-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
+        resources:
+          requests:
+            cpu: "2"
+            memory: "8Gi"
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: "4"
+            memory: "16Gi"
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - name: model-weights
+          mountPath: /models
+          readOnly: true
+        - name: llm-team-key
+          mountPath: /etc/secrets
+          readOnly: true
+      volumes:
+      - name: model-weights
+        persistentVolumeClaim:
+          claimName: llm-model-weights-pvc
+      - name: llm-team-key
+        secret:
+          secretName: llm-team-key

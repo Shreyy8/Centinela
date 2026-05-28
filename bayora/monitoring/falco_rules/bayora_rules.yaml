@@ -1,0 +1,31 @@
+- rule: Bayora Cross-Namespace DNS Probe
+  desc: Detect attempts to resolve DNS names of services in other namespaces
+  condition: >
+    dns.question.name glob "*.blue-team.svc.cluster.local" or
+    dns.question.name glob "*.red-team.svc.cluster.local" or
+    dns.question.name glob "*.llm-sandbox.svc.cluster.local"
+    and not (k8s.ns.name == "session-manager")
+  output: "Bayora Security Breach: DNS probe from %k8s.ns.name toward %dns.question.name (pod=%container.name)"
+  priority: CRITICAL
+  tags: [network, bayora, isolation]
+
+- rule: Bayora Blocked Syscall Invocation
+  desc: Detect usage of ptrace or perf_event_open which are blocked by seccomp but caught by Falco
+  condition: >
+    syscall.type in (ptrace, perf_event_open, process_vm_readv)
+    and k8s.ns.name in (red-team, blue-team, llm-sandbox)
+  output: "Bayora Security Breach: Unauthorized syscall %syscall.type invoked in %k8s.ns.name (pod=%container.name)"
+  priority: CRITICAL
+  tags: [syscall, bayora, isolation]
+
+- rule: Bayora Unauthorized File Access
+  desc: Detect file access outside permitted paths in tenant containers
+  condition: >
+    fd.filename not startswith "/app" and
+    fd.filename not startswith "/etc/secrets" and
+    fd.filename not startswith "/models" and
+    evt.type = open and
+    k8s.ns.name in (red-team, blue-team, llm-sandbox)
+  output: "Bayora Security Breach: File access violation in %k8s.ns.name (file=%fd.filename pod=%container.name)"
+  priority: HIGH
+  tags: [filesystem, bayora, isolation]

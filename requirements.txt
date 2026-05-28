@@ -1,0 +1,17 @@
+fastapi>=0.110.0
+uvicorn>=0.27.1
+pydantic>=2.6.3
+cryptography>=42.0.5
+aiokafka>=0.10.0
+psycopg2-binary>=2.9.9
+torch>=2.2.1
+transformers>=4.38.2
+peft>=0.10.0
+vllm>=0.4.0
+requests>=2.31.0
+pyyaml>=6.0.1
+scikit-learn>=1.4.1
+sentence-transformers>=2.5.0
+google-generativeai>=0.5.4
+python-dotenv>=1.0.1
+litellm>=1.35.0

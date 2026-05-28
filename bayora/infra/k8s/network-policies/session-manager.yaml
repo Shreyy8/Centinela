@@ -1,0 +1,44 @@
+# Session Manager Network Policies
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: session-manager-traffic
+  namespace: session-manager
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from red-team and blue-team on port 8443
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: red-team
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: blue-team
+    ports:
+    - protocol: TCP
+      port: 8443
+  egress:
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow egress to Kafka
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kafka
+    ports:
+    - protocol: TCP
+      port: 9092
+    - protocol: TCP
+      port: 9093

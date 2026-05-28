@@ -1,0 +1,113 @@
+# Quotas and Limits for tenant namespaces
+# Applied to red-team, blue-team, llm-sandbox, session-manager
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota
+  namespace: red-team
+spec:
+  hard:
+    pods: "10"
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: tenant-limits
+  namespace: red-team
+spec:
+  limits:
+  - default:
+      cpu: 1000m
+      memory: 1Gi
+    defaultRequest:
+      cpu: 500m
+      memory: 512Mi
+    type: Container
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota
+  namespace: blue-team
+spec:
+  hard:
+    pods: "10"
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: tenant-limits
+  namespace: blue-team
+spec:
+  limits:
+  - default:
+      cpu: 1000m
+      memory: 1Gi
+    defaultRequest:
+      cpu: 500m
+      memory: 512Mi
+    type: Container
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota
+  namespace: session-manager
+spec:
+  hard:
+    pods: "5"
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: tenant-limits
+  namespace: session-manager
+spec:
+  limits:
+  - default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 250m
+      memory: 256Mi
+    type: Container
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: llm-quota
+  namespace: llm-sandbox
+spec:
+  hard:
+    pods: "20"
+    requests.cpu: "20"
+    requests.memory: 64Gi
+    limits.cpu: "40"
+    limits.memory: 128Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: llm-limits
+  namespace: llm-sandbox
+spec:
+  limits:
+  - default:
+      cpu: "4"
+      memory: 16Gi
+    defaultRequest:
+      cpu: "2"
+      memory: 8Gi
+    type: Container

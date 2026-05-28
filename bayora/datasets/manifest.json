@@ -1,0 +1,23 @@
+{
+    "datasets": [
+        {
+            "name": "advbench",
+            "version": "1.0",
+            "source": "https://github.com/llm-attacks/llm-attacks",
+            "loader_method": "load_advbench"
+        },
+        {
+            "name": "jailbreakbench",
+            "version": "1.0",
+            "source": "https://jailbreakbench.github.io/",
+            "loader_method": "load_jailbreakbench"
+        }
+    ],
+    "adapters": [
+        {
+            "name": "blue_agent_lora",
+            "version": "1.0",
+            "path": "./blue_agent_lora"
+        }
+    ]
+}

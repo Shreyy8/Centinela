@@ -1,0 +1,179 @@
+---
+# Session Manager Deployment (Decentralized - No DB Access)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: session-manager
+  namespace: session-manager
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: session-manager
+  template:
+    metadata:
+      labels:
+        app: session-manager
+    spec:
+      runtimeClassName: gvisor-sandboxed
+      containers:
+      - name: session-manager
+        image: bayora/microservices:latest
+        imagePullPolicy: IfNotPresent
+        command: ["uvicorn", "bayora.services.session_manager.main:app", "--host", "0.0.0.0", "--port", "8000"]
+        env:
+        - name: KAFKA_BROKER
+          value: "bayora-cluster-kafka-bootstrap.kafka.svc:9092"
+        # ❌ REMOVED POSTGRES_HOST: session-manager no longer connects to DB
+        envFrom:
+        - secretRef:
+            name: session-manager-keys
+        ports:
+        - containerPort: 8000
+
+---
+# Audit Service (Immutable Ledger)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-service
+  namespace: audit-log
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: audit-service
+  template:
+    metadata:
+      labels:
+        app: audit-service
+    spec:
+      containers:
+      - name: audit-service
+        image: bayora/microservices:latest
+        imagePullPolicy: IfNotPresent
+        command: ["uvicorn", "bayora.services.audit_service.main:app", "--host", "0.0.0.0", "--port", "8005"]
+        env:
+        - name: KAFKA_BROKER
+          value: "bayora-cluster-kafka-bootstrap.kafka.svc:9092"
+        - name: POSTGRES_HOST
+          value: "postgres.audit.svc.cluster.local"
+        - name: POSTGRES_USER
+          value: "bayora"
+        - name: POSTGRES_DB
+          value: "bayora_audit"
+        # In production, POSTGRES_PASSWORD would be in a Secret
+        - name: POSTGRES_PASSWORD
+          value: "bayora_password"
+        ports:
+        - containerPort: 8005
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-service
+  namespace: audit-log
+spec:
+  selector:
+    app: audit-service
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8005
+
+---
+# Blue Team Defense Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blue-team
+  namespace: blue-team
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: blue-team
+  template:
+    metadata:
+      labels:
+        app: blue-team
+    spec:
+      runtimeClassName: gvisor-sandboxed
+      containers:
+      - name: blue-team
+        image: bayora/microservices:latest
+        imagePullPolicy: IfNotPresent
+        command: ["uvicorn", "bayora.services.blue_team.main:app", "--host", "0.0.0.0", "--port", "8001"]
+        env:
+        - name: KAFKA_BROKER
+          value: "bayora-cluster-kafka-bootstrap.kafka.svc:9092"
+        envFrom:
+        - secretRef:
+            name: blue-team-keys
+        ports:
+        - containerPort: 8001
+
+---
+# Red Team Attack Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: red-team
+  namespace: red-team
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: red-team
+  template:
+    metadata:
+      labels:
+        app: red-team
+    spec:
+      runtimeClassName: gvisor-sandboxed
+      containers:
+      - name: red-team
+        image: bayora/microservices:latest
+        imagePullPolicy: IfNotPresent
+        command: ["uvicorn", "bayora.services.red_team.main:app", "--host", "0.0.0.0", "--port", "8003"]
+        env:
+        - name: KAFKA_BROKER
+          value: "bayora-cluster-kafka-bootstrap.kafka.svc:9092"
+        envFrom:
+        - secretRef:
+            name: red-team-keys
+        ports:
+        - containerPort: 8003
+
+---
+# LLM Proxy Deployment (Sandbox)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-proxy
+  namespace: llm-sandbox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-proxy
+  template:
+    metadata:
+      labels:
+        app: llm-proxy
+    spec:
+      runtimeClassName: gvisor-sandboxed
+      containers:
+      - name: llm-proxy
+        image: bayora/microservices:latest
+        imagePullPolicy: IfNotPresent
+        command: ["uvicorn", "bayora.services.llm_proxy.main:app", "--host", "0.0.0.0", "--port", "8002"]
+        env:
+        - name: KAFKA_BROKER
+          value: "bayora-cluster-kafka-bootstrap.kafka.svc:9092"
+        envFrom:
+        - secretRef:
+            name: llm-proxy-keys
+        ports:
+        - containerPort: 8002
