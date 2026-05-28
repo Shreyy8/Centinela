@@ -5,7 +5,7 @@ from peft import PeftModel
 from cryptography.fernet import Fernet
 
 class DefenseClassifier:
-    def __init__(self, base_model="unitary/toxic-bert", adapter_path=None):
+    def __init__(self, base_model="unitary/toxic-bert", adapter_path="bayora/ml/models/blue_agent_lora"):
         self.tokenizer = AutoTokenizer.from_pretrained(base_model)
         
         # Must match Colab training: initialize with 2 labels to avoid shape mismatch with LoRA

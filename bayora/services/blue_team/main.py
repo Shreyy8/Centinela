@@ -12,7 +12,7 @@ import json
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "localhost:9092")
 BLUE_KEY = os.getenv("BLUE_KEY", Fernet.generate_key().decode())
 fernet = Fernet(BLUE_KEY.encode())
-classifier = DefenseClassifier(adapter_path="./blue_agent_lora")
+classifier = DefenseClassifier() # Uses default organized path
 
 consumer_task = None
 kafka_producer = None

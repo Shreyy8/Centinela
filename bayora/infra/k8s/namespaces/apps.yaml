@@ -177,3 +177,43 @@ spec:
             name: llm-proxy-keys
         ports:
         - containerPort: 8002
+
+---
+# Benchmark Service (Orchestrator & Leaderboard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: benchmark-service
+  namespace: benchmark
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: benchmark-service
+  template:
+    metadata:
+      labels:
+        app: benchmark-service
+    spec:
+      containers:
+      - name: benchmark-service
+        image: bayora/microservices:latest
+        imagePullPolicy: IfNotPresent
+        command: ["uvicorn", "bayora.services.benchmark_service.main:app", "--host", "0.0.0.0", "--port", "8006"]
+        env:
+        - name: KAFKA_BROKER
+          value: "bayora-cluster-kafka-bootstrap.kafka.svc:9092"
+        - name: POSTGRES_HOST
+          value: "postgres.audit.svc.cluster.local"
+        - name: POSTGRES_USER
+          value: "bayora"
+        - name: POSTGRES_DB
+          value: "bayora_benchmark"
+        - name: POSTGRES_PASSWORD
+          value: "bayora_password"
+        - name: SESSION_MANAGER_URL
+          value: "http://session-manager.session-manager.svc.cluster.local:80"
+        - name: RED_TEAM_URL
+          value: "http://red-team.red-team.svc.cluster.local:80"
+        ports:
+        - containerPort: 8006

@@ -6,8 +6,6 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - 22181:2181
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -31,3 +29,78 @@ services:
       POSTGRES_DB: bayora_audit
     ports:
       - "5432:5432"
+
+  # Base Microservice services (example for session-manager)
+  session-manager:
+    build: .
+    command: ["uvicorn", "bayora.services.session_manager.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      - kafka
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BROKER: kafka:9092
+      RED_KEY: ${RED_KEY}
+      BLUE_KEY: ${BLUE_KEY}
+      LLM_KEY: ${LLM_KEY}
+
+  audit-service:
+    build: .
+    command: ["uvicorn", "bayora.services.audit_service.main:app", "--host", "0.0.0.0", "--port", "8005"]
+    depends_on:
+      - kafka
+      - postgres
+    ports:
+      - "8005:8005"
+    environment:
+      KAFKA_BROKER: kafka:9092
+      POSTGRES_HOST: postgres
+
+  benchmark-service:
+    build: .
+    command: ["uvicorn", "bayora.services.benchmark_service.main:app", "--host", "0.0.0.0", "--port", "8006"]
+    depends_on:
+      - kafka
+      - postgres
+    ports:
+      - "8006:8006"
+    environment:
+      KAFKA_BROKER: kafka:9092
+      POSTGRES_HOST: postgres
+      SESSION_MANAGER_URL: http://session-manager:8000
+      RED_TEAM_URL: http://red-team:8003
+
+  red-team:
+    build: .
+    command: ["uvicorn", "bayora.services.red_team.main:app", "--host", "0.0.0.0", "--port", "8003"]
+    depends_on:
+      - kafka
+    ports:
+      - "8003:8003"
+    environment:
+      KAFKA_BROKER: kafka:9092
+      RED_KEY: ${RED_KEY}
+
+  blue-team:
+    build: .
+    command: ["uvicorn", "bayora.services.blue_team.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    depends_on:
+      - kafka
+    ports:
+      - "8001:8001"
+    environment:
+      KAFKA_BROKER: kafka:9092
+      BLUE_KEY: ${BLUE_KEY}
+
+  llm-proxy:
+    build: .
+    command: ["uvicorn", "bayora.services.llm_proxy.main:app", "--host", "0.0.0.0", "--port", "8002"]
+    depends_on:
+      - kafka
+    ports:
+      - "8002:8002"
+    environment:
+      KAFKA_BROKER: kafka:9092
+      LLM_KEY: ${LLM_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      MOCK_LLM: ${MOCK_LLM:-0}
