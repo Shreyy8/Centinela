@@ -34,7 +34,6 @@ The platform leverages multiple layers of isolation:
 | KV-cache leakage | ✅ Mitigated | `use_cache=False` + session teardown |
 | Prompt corpus leakage | ✅ Mitigated | Delayed batch delivery |
 | Syscall-level recon | ✅ Mitigated | gVisor + Seccomp allowlist |
-| Shared DRAM timing | ❌ Not mitigated | Requires Confidential Computing (Intel TDX/AMD SEV) |
 
 ## Deployment
 
