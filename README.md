@@ -55,19 +55,17 @@ The **Audit Service** maintains a tamper-evident log. Every message (PROMPT_SENT
 
 | Service | Responsibility | Technology |
 | :--- | :--- | :--- |
-<<<<<<< HEAD
 | **Session Manager** | Orchestrates lifecycles, manages keys, and enforces "Delayed Batch" logic. | FastAPI, aiokafka |
 | **LLM Proxy** | Unified gateway for model inference (Gemini, vLLM, LiteLLM). | FastAPI, vLLM, LiteLLM |
 | **Red Team Service** | Generates adversarial payloads and probes safety boundaries. | PyTorch, Transformers |
 | **Blue Team Service** | Real-time and post-session classification of LLM outputs. | Scikit-learn, PEFT (LoRA) |
 | **Audit Service** | Maintains the Merkle-chained immutable event store. | PostgreSQL, Cryptography |
 | **Benchmark Service** | High-level coordinator for automated safety scoring. | Python |
-=======
 | Network side-channels | ✅ Mitigated | Istio mTLS + NetworkPolicy |
 | KV-cache leakage | ✅ Mitigated | `use_cache=False` + session teardown |
 | Prompt corpus leakage | ✅ Mitigated | Delayed batch delivery |
 | Syscall-level recon | ✅ Mitigated | gVisor + Seccomp allowlist |
->>>>>>> 3b54cfd1195f3480279c1746239bea5b8e371351
+
 
 ---
 
@@ -139,16 +137,7 @@ Centinela maintains a >90% coverage target for its core isolation logic.
 | **Data Exfiltration** | Istio Egress Gateway + Deny-All NetPol | Low (DNS Tunneling) |
 | **Audit Tampering** | Merkle-chained Chaining in Audit Service | Very Low |
 | **Model Poisoning** | Blue Team delayed classification | Moderate |
-| **Side-Channel (DRAM)** | Not yet mitigated | Moderate (Requires Intel TDX/AMD SEV) |
 
----
-
-## 🗺 Roadmap
-
-*   [ ] **Phase 1 (Current):** Core isolation, Kafka mediation, and basic Red/Blue team integration.
-*   [ ] **Phase 2:** Integration of Confidential Computing (Intel TDX) for DRAM-level isolation.
-*   [ ] **Phase 3:** Automated "Red-Team-in-the-Loop" RLHF safety tuning.
-*   [ ] **Phase 4:** Multi-cloud support (GCP/Azure) via Terraform modules.
 
 ---
 
@@ -156,8 +145,4 @@ Centinela maintains a >90% coverage target for its core isolation logic.
 
 We welcome contributions from the AI Safety and Cybersecurity communities. Please see `CONTRIBUTING.md` for our security disclosure policy and coding standards.
 
----
 
-## 📄 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
