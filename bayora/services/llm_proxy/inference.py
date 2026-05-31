@@ -74,10 +74,36 @@ class SandboxedInference:
             except Exception as e:
                 print(f"❌ Failed to load local model: {e}")
 
+    def _ollama_infer(self, prompt: str, model: str = "llama3") -> str:
+        """Call local Ollama instance at localhost:11434."""
+        import urllib.request
+        import json as jsonlib
+        body = jsonlib.dumps({
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+        }).encode()
+        req = urllib.request.Request(
+            "http://localhost:11434/api/generate",
+            data=body,
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                result = jsonlib.loads(resp.read().decode())
+                return result.get("response", "")
+        except Exception as e:
+            print(f"❌ Ollama inference error: {e}")
+            return f"[ERROR] Ollama inference failed: {e}"
+
     def infer(self, prompt: str, media: list = None) -> str:
         """Runs inference with output sandboxing."""
         if os.getenv("MOCK_LLM") == "1":
             response = f"MOCK LLM RESPONSE to: {prompt[:50]}... (Media attached: {len(media) if media else 0})"
+            return self._apply_sandbox_filters(prompt, response)
+
+        if os.getenv("OLLAMA_HOST"):
+            response = self._ollama_infer(prompt, os.getenv("OLLAMA_MODEL", "llama3"))
             return self._apply_sandbox_filters(prompt, response)
 
         if self.gemini_model:

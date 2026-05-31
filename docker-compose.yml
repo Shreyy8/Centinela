@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -93,7 +91,10 @@ services:
       BLUE_KEY: ${BLUE_KEY}
 
   llm-proxy:
-    build: .
+    build:
+      context: .
+      args:
+        EXTRA_REQUIREMENTS: requirements-llm.txt
     command: ["uvicorn", "bayora.services.llm_proxy.main:app", "--host", "0.0.0.0", "--port", "8002"]
     depends_on:
       - kafka
@@ -104,3 +105,53 @@ services:
       LLM_KEY: ${LLM_KEY}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       MOCK_LLM: ${MOCK_LLM:-0}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
+
+  auth-service:
+    build: .
+    command: ["uvicorn", "bayora.services.auth_service.main:app", "--host", "0.0.0.0", "--port", "8004"]
+    depends_on:
+      - mongodb
+    ports:
+      - "8004:8004"
+    environment:
+      MONGO_URI: mongodb://mongodb:27017
+      JWT_SECRET: ${JWT_SECRET:-supersecretkey}
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  audit-gateway:
+    build: .
+    command: ["uvicorn", "bayora.services.audit_gateway.main:app", "--host", "0.0.0.0", "--port", "8011"]
+    depends_on:
+      - kafka
+    ports:
+      - "8011:8011"
+    environment:
+      KAFKA_BROKER: kafka:9092
+      JWT_SECRET: ${JWT_SECRET:-supersecretkey}
+
+  gateway:
+    image: nginx:alpine
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./infra/nginx/centinela-gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - auth-service
+      - session-manager
+      - audit-service
+      - benchmark-service
+      - red-team
+      - blue-team
+      - llm-proxy
+      - audit-gateway
+
+volumes:
+  mongodb_data:

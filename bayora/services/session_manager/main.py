@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv() # Load from .env file
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 import uuid
 import base64
@@ -102,8 +102,15 @@ class AuditResponse(BaseModel):
     head_hash: str
     message: str = ""
 
+async def verify_token():
+    """Temporary no-op auth dependency so the session manager can start.
+
+    Replace this with a real token validation hook when the auth service is wired up.
+    """
+    return {"user": "anonymous"}
+
 @app.post("/session/start")
-async def start_session():
+async def start_session(user: dict = Depends(verify_token)):
     session_id = str(uuid.uuid4())
     
     # 🔐 DYNAMIC KEY GENERATION
@@ -118,7 +125,7 @@ async def start_session():
     return {"session_id": session_id, "session_key": session_key.decode()}
 
 @app.post("/session/infer")
-async def infer(req: InferRequest):
+async def infer(req: InferRequest, user: dict = Depends(verify_token)):
     if req.session_id not in message_bus.session_keys:
         raise HTTPException(status_code=404, detail="Session not found")
         
@@ -135,7 +142,7 @@ async def infer(req: InferRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/session/end")
-async def end_session(session_id: str):
+async def end_session(session_id: str, user: dict = Depends(verify_token)):
     if session_id not in message_bus.session_keys:
         raise HTTPException(status_code=404, detail="Session not found")
         
@@ -152,7 +159,7 @@ async def end_session(session_id: str):
     return {"status": "ended_batch_released"}
 
 @app.get("/session/{session_id}/status")
-async def session_status(session_id: str):
+async def session_status(session_id: str, user: dict = Depends(verify_token)):
     if session_id in message_bus.session_keys:
         return {"status": "active"}
     return {"status": "ended_or_not_found"}

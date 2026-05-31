@@ -2,21 +2,16 @@
 # The specific service to run is passed via the Kubernetes 'command' or 'args'
 FROM python:3.11-slim
 
-# Install system dependencies required for psycopg2 and ML binaries
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libpq-dev \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
-# Install Python requirements
-COPY requirements.txt .
-# Using --no-cache-dir to keep image size small
-RUN pip install --no-cache-dir -r requirements.txt
+ARG EXTRA_REQUIREMENTS=
 
-# Copy the entire codebase
+# Install Python requirements for the base service image.
+COPY requirements.txt requirements-llm.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements-llm.txt
+
+# Copy only the application code that the container needs.
 COPY bayora/ ./bayora/
 
 # Ensure Python can find the bayora package module

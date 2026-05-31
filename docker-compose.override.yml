@@ -1,0 +1,25 @@
+services:
+  session-manager:
+    volumes:
+      - ./bayora:/app/bayora
+  red-team:
+    volumes:
+      - ./bayora:/app/bayora
+  blue-team:
+    volumes:
+      - ./bayora:/app/bayora
+  llm-proxy:
+    volumes:
+      - ./bayora:/app/bayora
+  audit-service:
+    volumes:
+      - ./bayora:/app/bayora
+  benchmark-service:
+    volumes:
+      - ./bayora:/app/bayora
+  auth-service:
+    volumes:
+      - ./bayora:/app/bayora
+  audit-gateway:
+    volumes:
+      - ./bayora:/app/bayora

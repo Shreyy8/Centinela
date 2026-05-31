@@ -8,3 +8,5 @@ bayora/infra/k8s/namespaces/secrets.yaml
 .terraform/
 *.tfstate
 *.tfstate.backup
+# Added by code-review-graph
+.code-review-graph/

@@ -11,6 +11,12 @@
             "version": "1.0",
             "source": "https://jailbreakbench.github.io/",
             "loader_method": "load_jailbreakbench"
+        },
+        {
+            "name": "combined",
+            "version": "1.0",
+            "source": "combined (advbench + jailbreakbench)",
+            "loader_method": "load_combined"
         }
     ],
     "adapters": [

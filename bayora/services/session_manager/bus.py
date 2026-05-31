@@ -2,16 +2,22 @@ import os
 import base64
 from cryptography.fernet import Fernet
 
-RED_KEY = os.getenv("RED_KEY", Fernet.generate_key().decode())
-BLUE_KEY = os.getenv("BLUE_KEY", Fernet.generate_key().decode())
-LLM_KEY = os.getenv("LLM_KEY", Fernet.generate_key().decode())
+def get_key(env_var):
+    key = os.getenv(env_var)
+    if not key:
+        return Fernet.generate_key()
+    return key.encode()
+
+RED_KEY = get_key("RED_KEY")
+BLUE_KEY = get_key("BLUE_KEY")
+LLM_KEY = get_key("LLM_KEY")
 
 class IsolatedMessageBus:
     def __init__(self, audit_log, kafka_producer=None, batch_size=5):
         self.audit_log = audit_log
-        self.red_fernet = Fernet(RED_KEY.encode())
-        self.blue_fernet = Fernet(BLUE_KEY.encode())
-        self.llm_fernet = Fernet(LLM_KEY.encode())
+        self.red_fernet = Fernet(RED_KEY)
+        self.blue_fernet = Fernet(BLUE_KEY)
+        self.llm_fernet = Fernet(LLM_KEY)
         self.kafka_producer = kafka_producer
         self.batch_size = batch_size
         
