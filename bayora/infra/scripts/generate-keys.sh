@@ -2,9 +2,9 @@
 set -e
 
 # Generate Fernet keys
-RED_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" | base64 -w 0)
-BLUE_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" | base64 -w 0)
-LLM_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" | base64 -w 0)
+RED_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+BLUE_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+LLM_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
 
 # Create secret manifests
 cat <<EOF > ../k8s/namespaces/secrets.yaml

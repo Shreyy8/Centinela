@@ -6,12 +6,18 @@ from cryptography.fernet import Fernet
 import json
 
 # The LLM Proxy uses LLM_KEY to decrypt requests and SESSION_KEY to encrypt responses
-LLM_KEY = os.getenv("LLM_KEY", Fernet.generate_key().decode())
+def get_key(env_var):
+    key = os.getenv(env_var)
+    if not key:
+        return Fernet.generate_key()
+    return key.encode()
+
+LLM_KEY = get_key("LLM_KEY")
 
 class LLMProxyBus:
     def __init__(self, inference_engine):
         self.inference_engine = inference_engine
-        self.llm_fernet = Fernet(LLM_KEY.encode())
+        self.llm_fernet = Fernet(LLM_KEY)
         self.current_session_fernet = None
         
         # Mock Kafka
