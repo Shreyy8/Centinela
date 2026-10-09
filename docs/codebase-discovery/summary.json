@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "project": {
+    "name": "Centinela",
+    "internal_name": "Bayora",
+    "description": "Adversarial AI Safety Testing, Sandboxed Red/Blue Team Evaluation, and Forensic Certification Platform",
+    "repository_url": "https://github.com/Shreyy8/Centinela.git",
+    "tech_stack": {
+      "frontend": ["React 19", "TanStack Start", "TanStack Router", "TanStack Query", "Tailwind CSS v4", "Vite 7"],
+      "backend": ["Python 3.11", "FastAPI", "Uvicorn", "AIOKafka", "Pydantic v2"],
+      "ml_frameworks": ["PyTorch", "Hugging Face Transformers", "PEFT (LoRA)", "LiteLLM", "Sentence-Transformers"],
+      "message_broker": "Apache Kafka (Confluent Platform 7.5.0 / Strimzi K8s Operator)",
+      "databases": ["PostgreSQL 16", "MongoDB 7+"],
+      "infrastructure": ["Docker Compose", "Kubernetes", "gVisor (runsc)", "Istio Service Mesh", "Falco eBPF", "Terraform AWS EKS"]
+    }
+  },
+  "microservices": [
+    {
+      "name": "auth-service",
+      "port": 8004,
+      "directory": "bayora/services/auth_service",
+      "entry_point": "bayora.services.auth_service.main:app",
+      "database": "MongoDB (bayora_auth)",
+      "status": "fully_implemented"
+    },
+    {
+      "name": "session-manager",
+      "port": 8000,
+      "directory": "bayora/services/session_manager",
+      "entry_point": "bayora.services.session_manager.main:app",
+      "database": "In-Memory / Kafka",
+      "status": "fully_implemented_auth_stubbed"
+    },
+    {
+      "name": "benchmark-service",
+      "port": 8006,
+      "directory": "bayora/services/benchmark_service",
+      "entry_point": "bayora.services.benchmark_service.main:app",
+      "database": "PostgreSQL (bayora_benchmark)",
+      "status": "fully_implemented"
+    },
+    {
+      "name": "audit-service",
+      "port": 8005,
+      "directory": "bayora/services/audit_service",
+      "entry_point": "bayora.services.audit_service.main:app",
+      "database": "PostgreSQL (bayora_audit)",
+      "status": "fully_implemented"
+    },
+    {
+      "name": "audit-gateway",
+      "port": 8011,
+      "directory": "bayora/services/audit_gateway",
+      "entry_point": "bayora.services.audit_gateway.main:app",
+      "database": "None (WebSocket Fanout)",
+      "status": "fully_implemented"
+    },
+    {
+      "name": "red-team",
+      "port": 8003,
+      "directory": "bayora/services/red_team",
+      "entry_point": "bayora.services.red_team.main:app",
+      "database": "None (Kafka red.prompts)",
+      "status": "implemented_datasets_mocked"
+    },
+    {
+      "name": "blue-team",
+      "port": 8001,
+      "directory": "bayora/services/blue_team",
+      "entry_point": "bayora.services.blue_team.main:app",
+      "database": "None (Kafka blue.evaluation)",
+      "status": "implemented"
+    },
+    {
+      "name": "llm-proxy",
+      "port": 8002,
+      "directory": "bayora/services/llm_proxy",
+      "entry_point": "bayora.services.llm_proxy.main:app",
+      "database": "None (Kafka llm.requests)",
+      "status": "implemented"
+    },
+    {
+      "name": "gateway",
+      "port": 8010,
+      "directory": "infra/nginx",
+      "entry_point": "centinela-gateway.conf",
+      "database": "None (Reverse Proxy)",
+      "status": "fully_implemented"
+    }
+  ],
+  "features": [
+    { "id": "FEAT-01", "name": "User Registration", "status": "VERIFIED", "path": "frontend/src/routes/register.tsx" },
+    { "id": "FEAT-02", "name": "User Login & JWT", "status": "VERIFIED", "path": "frontend/src/routes/login.tsx" },
+    { "id": "FEAT-03", "name": "User Profile", "status": "UI_ONLY", "path": "frontend/src/routes/profile.tsx" },
+    { "id": "FEAT-04", "name": "Audit Configuration", "status": "VERIFIED", "path": "frontend/src/routes/config.tsx" },
+    { "id": "FEAT-05", "name": "Provider Key Encryption", "status": "VERIFIED", "path": "bayora/services/auth_service/main.py" },
+    { "id": "FEAT-06", "name": "Session Cryptographic Brokerage", "status": "VERIFIED", "path": "bayora/services/session_manager/main.py" },
+    { "id": "FEAT-07", "name": "Adversarial Drill Runner", "status": "IMPLEMENTED", "path": "bayora/services/benchmark_service/main.py" },
+    { "id": "FEAT-08", "name": "Adversarial Mutation Engine", "status": "MOCKED", "path": "bayora/ml/attack_generators/engine.py" },
+    { "id": "FEAT-09", "name": "Sandboxed Target Inference", "status": "IMPLEMENTED", "path": "bayora/services/llm_proxy/inference.py" },
+    { "id": "FEAT-10", "name": "Output Echo & Semantic DLP", "status": "VERIFIED", "path": "bayora/services/llm_proxy/inference.py" },
+    { "id": "FEAT-11", "name": "VRAM Cache Teardown", "status": "VERIFIED", "path": "bayora/services/llm_proxy/inference.py" },
+    { "id": "FEAT-12", "name": "Delayed Micro-Batch Delivery", "status": "VERIFIED", "path": "bayora/services/session_manager/bus.py" },
+    { "id": "FEAT-13", "name": "LoRA Sequence Classification", "status": "IMPLEMENTED", "path": "bayora/ml/classifiers/defense.py" },
+    { "id": "FEAT-14", "name": "Real-time Telemetry Streaming", "status": "PARTIAL", "path": "frontend/src/routes/audit.tsx" },
+    { "id": "FEAT-15", "name": "Safety Score & Certificate Seal", "status": "PARTIAL", "path": "frontend/src/routes/results.tsx" },
+    { "id": "FEAT-16", "name": "Tamper-Evident Hash Chain Ledger", "status": "VERIFIED", "path": "bayora/services/audit_service/main.py" },
+    { "id": "FEAT-17", "name": "Falco Breach Termination", "status": "VERIFIED", "path": "bayora/services/session_manager/violations.py" },
+    { "id": "FEAT-18", "name": "Leaderboard & Datasets Listing", "status": "BACKEND_ONLY", "path": "bayora/services/benchmark_service/main.py" }
+  ],
+  "data_stores": {
+    "postgresql": [
+      {
+        "database": "bayora_audit",
+        "tables": ["audit_entries"],
+        "purpose": "Append-only cryptographic SHA-256 hash-chain audit ledger"
+      },
+      {
+        "database": "bayora_benchmark",
+        "tables": ["benchmark_runs"],
+        "purpose": "Adversarial safety audit drill tracking, counters, and leaderboard"
+      }
+    ],
+    "mongodb": [
+      {
+        "database": "bayora_auth",
+        "collections": ["users", "configs"],
+        "purpose": "User accounts, bcrypt credentials, and Fernet-encrypted target configs"
+      }
+    ],
+    "kafka_topics": [
+      "red.prompts",
+      "llm.requests",
+      "llm.responses",
+      "blue.evaluation",
+      "classifications",
+      "benchmark.reports",
+      "audit.events",
+      "session.progress",
+      "security.violations"
+    ]
+  },
+  "identified_gaps": [
+    {
+      "code": "GAP-01",
+      "title": "TypeScript Compiler Error in audit.tsx",
+      "severity": "HIGH",
+      "file": "frontend/src/routes/audit.tsx",
+      "line": 85,
+      "details": "useRef called with 0 arguments; blocks npx tsc and production npm run build"
+    },
+    {
+      "code": "GAP-02",
+      "title": "Corrupted Abandoned Django Settings",
+      "severity": "HIGH",
+      "file": "services/orchestrator/src/orchestrator/settings.py",
+      "line": 1,
+      "details": "WinError socket bind exception text pasted ahead of python code"
+    },
+    {
+      "code": "GAP-03",
+      "title": "Stale Test Paths in Makefile",
+      "severity": "MEDIUM",
+      "file": "Makefile",
+      "line": 33,
+      "details": "make test references old file locations prior to commit 0c39f81"
+    },
+    {
+      "code": "GAP-04",
+      "title": "Mocked Profile Page",
+      "severity": "MEDIUM",
+      "file": "frontend/src/routes/profile.tsx",
+      "line": 23,
+      "details": "Hardcoded Sarah Chen profile; no backend API connection"
+    },
+    {
+      "code": "GAP-05",
+      "title": "Missing PDF Certificate Export",
+      "severity": "MEDIUM",
+      "file": "frontend/src/routes/results.tsx",
+      "line": 267,
+      "details": "Download button has no click handler or PDF generator"
+    },
+    {
+      "code": "GAP-06",
+      "title": "Mocked Safety Dataset Corpus",
+      "severity": "HIGH",
+      "file": "bayora/datasets/loaders/common.py",
+      "line": 29,
+      "details": "Only 3 hardcoded prompt items across AdvBench and JailbreakBench"
+    },
+    {
+      "code": "GAP-07",
+      "title": "Session Manager No-Op Auth Stub",
+      "severity": "HIGH",
+      "file": "bayora/services/session_manager/main.py",
+      "line": 105,
+      "details": "verify_token() returns anonymous user without validating JWTs"
+    },
+    {
+      "code": "GAP-08",
+      "title": "Direct Port Bypasses in Frontend API Client",
+      "severity": "MEDIUM",
+      "file": "frontend/src/lib/api.ts",
+      "line": 1,
+      "details": "Directly targets ports 8004, 8006, 8000, 8011 instead of Nginx gateway on port 8010"
+    }
+  ]
+}

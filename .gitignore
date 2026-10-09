@@ -10,3 +10,4 @@ bayora/infra/k8s/namespaces/secrets.yaml
 *.tfstate.backup
 # Added by code-review-graph
 .code-review-graph/
+.gemini/
