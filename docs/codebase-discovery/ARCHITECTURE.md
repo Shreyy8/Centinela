@@ -1,236 +1,240 @@
 # Centinela (Bayora) — Architecture & Execution Flows
 
-> **Component:** System Architecture, Execution Tracing & Topology  
-> **Repository:** [Centinela](https://github.com/Shreyy8/Centinela.git)  
+> **Document Type:** System Architecture Specification & Execution Flow Discovery  
+> **Repository:** [Centinela (formerly Bayora)](https://github.com/Shreyy8/Centinela.git)  
+> **Status:** Verified against source code  
 
 ---
 
-## 1. System Context & Component Architecture
+## 1. System Architecture Overview
 
-Centinela employs a **Mediated Microservice Architecture** centered around a central message bus and isolated processing agents. Tenants (Red Team, Blue Team, and LLM Proxy) never communicate directly over standard TCP/IP networking; all interactions are mediated through cryptographic envelopes handled by the **Session Manager** and orchestrated by the **Benchmark Service**.
-
-### 1.1 System Context Diagram (C4 Context)
+Centinela is built upon a **mediated microservices architecture** operating across three distinct layers:
+1. **Presentation & Gateway Layer:** A React 19 / TanStack Start frontend communicating with backend services via Nginx reverse proxy (Port 8010) or direct service ports in local development.
+2. **Cryptographic Core & Orchestration Layer:** FastAPI services coordinating attack generation, evaluation, and benchmark reporting through an isolated Apache Kafka message broker. All inter-service message flows are mediated by `session-manager` using dynamic symmetric keys.
+3. **Data & Telemetry Layer:** PostgreSQL databases (`bayora_audit` and `bayora_benchmark`), MongoDB (`bayora_auth`), an append-only SHA-256 hash ledger, and an asynchronous WebSocket fanout gateway.
 
 ```mermaid
-flowchart TD
-    subgraph Users["System Actors"]
-        Auditor["Security Auditor / CISO"]
-        TargetSys["Audited AI Deployment (OpenAI / Gemini / Ollama)"]
+graph TD
+    User["Auditor / CISO / Safety Engineer"] -->|HTTPS / Port 5173| Frontend["Frontend UI (React 19 / TanStack Start)"]
+    Frontend -->|HTTP REST| Nginx["API Gateway (Nginx :8010)"]
+    Frontend -->|WebSocket / Port 8011| WSGateway["Audit Gateway (:8011)"]
+
+    subgraph "Edge / Ingress"
+        Nginx
+        WSGateway
     end
 
-    subgraph CentinelaPlatform["Centinela AI Safety Platform"]
-        UI["Web Portal (TanStack Start / React 19)"]
-        Gateway["Nginx API Gateway (:8010)"]
-        AuthSvc["Auth & Config Service (:8004)"]
-        BenchSvc["Benchmark Service (:8006)"]
-        SessMgr["Session Manager (:8000)"]
+    subgraph "Core Microservices (FastAPI)"
+        Auth["Auth Service (:8004)"]
+        SessionMgr["Session Manager (:8000)"]
+        BenchMgr["Benchmark Service (:8006)"]
+        RedTeam["Red Team Engine (:8003)"]
+        BlueTeam["Blue Team Defense (:8001)"]
+        LLMProxy["LLM Sandbox Proxy (:8002)"]
         AuditSvc["Audit Service (:8005)"]
-        AuditGW["WebSocket Audit Gateway (:8011)"]
-        RedTeam["Red Team Adversarial Engine (:8003)"]
-        BlueTeam["Blue Team Defense Classifier (:8001)"]
-        LLMProxy["LLM Inference Proxy (:8002)"]
-        Kafka["Apache Kafka Message Broker (:9092)"]
-        Postgres[("PostgreSQL Storage (:5432)")]
-        Mongo[("MongoDB Storage (:27017)")]
     end
 
-    Auditor -->|Configure & Monitor Audits| UI
-    UI -->|HTTP / REST| Gateway
-    UI -->|WebSockets| AuditGW
-    Gateway --> AuthSvc
-    Gateway --> BenchSvc
-    Gateway --> SessMgr
-    Gateway --> AuditSvc
-    Gateway --> AuditGW
+    subgraph "Storage & Messaging"
+        Kafka["Apache Kafka (:9092)"]
+        PostgresAudit[("PostgreSQL: bayora_audit")]
+        PostgresBench[("PostgreSQL: bayora_benchmark")]
+        MongoAuth[("MongoDB: bayora_auth")]
+    end
 
-    AuthSvc --> Mongo
-    BenchSvc --> Postgres
-    AuditSvc --> Postgres
+    Nginx --> Auth
+    Nginx --> SessionMgr
+    Nginx --> BenchMgr
+    Nginx --> RedTeam
+    Nginx --> BlueTeam
+    Nginx --> LLMProxy
+    Nginx --> AuditSvc
 
-    BenchSvc -->|HTTP Start/End Session| SessMgr
-    BenchSvc -->|HTTP Trigger Attack Stream| RedTeam
+    Auth --> MongoAuth
+    AuditSvc --> PostgresAudit
+    BenchMgr --> PostgresBench
 
-    RedTeam -->|Publish 'red.prompts'| Kafka
-    Kafka -->|Consume 'red.prompts'| SessMgr
-    SessMgr -->|Publish 'llm.requests'| Kafka
-    Kafka -->|Consume 'llm.requests'| LLMProxy
-
-    LLMProxy -->|Inference Execution| TargetSys
-    LLMProxy -->|Publish 'llm.responses'| Kafka
-    Kafka -->|Consume 'llm.responses'| SessMgr
-
-    SessMgr -->|Publish 'blue.evaluation' (Batched)| Kafka
-    Kafka -->|Consume 'blue.evaluation'| BlueTeam
-
-    BlueTeam -->|Publish 'classifications' & 'benchmark.reports'| Kafka
-    Kafka -->|Consume 'classifications'| AuditGW
-    Kafka -->|Consume 'benchmark.reports'| BenchSvc
-
-    SessMgr -->|Publish 'audit.events'| Kafka
-    Kafka -->|Consume 'audit.events'| AuditSvc
-    Kafka -->|Consume 'audit.events'| AuditGW
+    RedTeam -->|red.prompts| Kafka
+    Kafka -->|red.prompts| SessionMgr
+    SessionMgr -->|llm.requests| Kafka
+    Kafka -->|llm.requests| LLMProxy
+    LLMProxy -->|llm.responses| Kafka
+    Kafka -->|llm.responses| SessionMgr
+    SessionMgr -->|blue.evaluation| Kafka
+    Kafka -->|blue.evaluation| BlueTeam
+    BlueTeam -->|classifications, benchmark.reports| Kafka
+    Kafka -->|classifications, session.progress| WSGateway
+    Kafka -->|benchmark.reports| BenchMgr
+    SessionMgr -->|audit.events| Kafka
+    Kafka -->|audit.events| AuditSvc
 ```
 
 ---
 
-## 2. Multi-Tenant Cryptographic Isolation Model
+## 2. Cryptographic Message Bus & Isolation Model
 
-To guarantee tamper-proof isolation between the adversarial red team generating attacks, the target model executing inference, and the blue team classifying the responses, the system enforces a **Four-Key Cryptographic Separation**:
+Centinela implements **zero direct network connectivity** between the Red Team, Blue Team, and LLM Proxy. Direct communication is prevented by Kubernetes network policies, Istio mTLS authorization policies, and application-level symmetric cryptography using Fernet (AES-128-CBC + HMAC-SHA256).
+
+### The Four-Key Isolation Architecture
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Red as Red Team Engine
-    participant Kafka as Apache Kafka
     participant SM as Session Manager
-    participant LLM as LLM Proxy Sandbox
+    participant LLM as LLM Sandbox Proxy
     participant Blue as Blue Team Defense
+    participant Audit as Audit Service
 
-    Note over Red,SM: Key: RED_KEY (Static/Environment)
-    Red->>Red: Encrypt prompt with RED_KEY
-    Red->>Kafka: Publish to 'red.prompts' (Header: session_id)
-    Kafka->>SM: Consume 'red.prompts'
+    Note over SM: Session Start: Generates ephemeral SESSION_KEY
+    SM->>Audit: Publish SESSION_START to audit.events
 
-    Note over SM: Decrypt with RED_KEY
-    Note over SM,LLM: Key: LLM_KEY (Static/Environment)
-    Note over SM,LLM: Key: SESSION_KEY (Dynamic 32-byte Fernet key per session)
-    SM->>SM: Re-encrypt plaintext with LLM_KEY
-    SM->>Kafka: Publish to 'llm.requests' (Headers: session_id, session_key)
-    Kafka->>LLM: Consume 'llm.requests'
+    Note over Red: 1. Encrypt with RED_KEY
+    Red->>SM: POST /session/infer (Encrypted with RED_KEY)
+    
+    Note over SM: 2. Decrypt with RED_KEY & Re-encrypt with LLM_KEY
+    SM->>LLM: Publish to llm.requests (Header: session_key)
 
-    Note over LLM: Decrypt with LLM_KEY
-    LLM->>LLM: Run Sandboxed Inference & Filters
-    LLM->>LLM: Encrypt response with SESSION_KEY
-    LLM->>Kafka: Publish to 'llm.responses' (Header: session_id)
-    Kafka->>SM: Consume 'llm.responses'
+    Note over LLM: 3. Decrypt with LLM_KEY, Run Sandboxed Infer, Encrypt with SESSION_KEY
+    LLM->>SM: Publish to llm.responses (Encrypted with SESSION_KEY)
 
-    Note over SM: Decrypt with SESSION_KEY
-    Note over SM: Accumulate in unreleased buffer
-    Note over SM: Check batch threshold (default: 5 responses)
+    Note over SM: 4. Decrypt with SESSION_KEY, Micro-batch (size=5), Re-encrypt with BLUE_KEY
+    SM->>Blue: Publish to blue.evaluation (Encrypted with BLUE_KEY)
 
-    Note over SM,Blue: Key: BLUE_KEY (Static/Environment)
-    SM->>SM: Re-encrypt batch bundle with BLUE_KEY
-    SM->>Kafka: Publish to 'blue.evaluation' (Header: session_id)
-    Kafka->>Blue: Consume 'blue.evaluation'
-    Note over Blue: Decrypt with BLUE_KEY & Classify
+    Note over Blue: 5. Decrypt with BLUE_KEY, Run Toxic-BERT Classifier, Emit Reports
 ```
 
-### Cryptographic Key Hierarchy
-
-| Key Identifier | Lifecycle | Holder Services | Function |
-|---|---|---|---|
-| `RED_KEY` | Static / Injected via env or K8s Secret | `red-team`, `session-manager` | Encrypts raw adversarial attack strings. LLM Proxy and Blue Team never see this key. |
-| `LLM_KEY` | Static / Injected via env or K8s Secret | `session-manager`, `llm-sandbox` | Encrypts mediated prompts before forwarding to the LLM sandbox. |
-| `SESSION_KEY` | Dynamic / Generated per session via `Fernet.generate_key()` | `session-manager`, passed in Kafka header to `llm-sandbox` | Ephemeral 32-byte key used to encrypt raw model responses. Destroyed upon session teardown (`del message_bus.session_keys[session_id]`). |
-| `BLUE_KEY` | Static / Injected via env or K8s Secret | `session-manager`, `blue-team` | Encrypts batched response bundles released for safety evaluation. Red Team never sees this key. |
+1. **`RED_KEY`**: Static symmetric key possessed only by Red Team and Session Manager. Red Team encrypts generated adversarial prompts before publishing to `red.prompts`.
+2. **`LLM_KEY`**: Static symmetric key possessed only by Session Manager and LLM Proxy. Session Manager decrypts red prompts with `RED_KEY` and re-encrypts with `LLM_KEY` before forwarding to `llm.requests`.
+3. **`SESSION_KEY`**: Ephemeral, dynamically generated 32-byte key created per drill by Session Manager. LLM Proxy uses this key to encrypt responses sent to `llm.responses`.
+4. **`BLUE_KEY`**: Static symmetric key possessed only by Session Manager and Blue Team. Session Manager decrypts responses with `SESSION_KEY`, aggregates them into micro-batches of 5 (to destroy prompt-response timing correlation), re-encrypts the batch with `BLUE_KEY`, and produces to `blue.evaluation`.
 
 ---
 
-## 3. End-to-End Execution Trace: The Audit Drill Lifecycle
+## 3. End-to-End Execution Flow: Running an Adversarial Audit
 
-Tracing the complete journey from user click on the UI to finalized certification:
+Tracing a user starting an audit on `/config` through completion:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Frontend as Frontend (/config & /audit)
+    participant BenchSvc as Benchmark Service (:8006)
+    participant SessionMgr as Session Manager (:8000)
+    participant RedTeam as Red Team Engine (:8003)
+    participant LLMProxy as LLM Proxy (:8002)
+    participant BlueTeam as Blue Team Defense (:8001)
+    participant WSGateway as Audit Gateway (:8011)
+
+    User->>Frontend: Selects model, domain, budget; Clicks "EXECUTE ADVERSARIAL AUDIT"
+    Frontend->>BenchSvc: POST /drills/run {drill_name, domain, count}
+    
+    BenchSvc->>SessionMgr: POST /session/start
+    SessionMgr-->>BenchSvc: Returns {session_id, session_key}
+    BenchSvc->>BenchSvc: Insert benchmark_runs (status='pending')
+    
+    BenchSvc->>RedTeam: POST /attack/stream {session_id, count, dataset_name}
+    BenchSvc-->>Frontend: Returns {status: 'drill_started', session_id}
+    
+    Frontend->>Frontend: Navigate to /audit?session_id=...
+    Frontend->>WSGateway: Connect WebSocket ws://localhost:8011/ws/{session_id}
+    WSGateway-->>Frontend: {"type": "connected", "session_id": ...}
+
+    loop For each attack batch (10 prompts)
+        RedTeam->>SessionMgr: Stream encrypted attacks via Kafka red.prompts
+        SessionMgr->>LLMProxy: Re-encrypt and send via Kafka llm.requests
+        LLMProxy->>LLMProxy: Sandboxed inference (echo & semantic filter)
+        LLMProxy->>SessionMgr: Encrypted response via Kafka llm.responses
+        
+        alt Micro-batch threshold reached (count >= 5)
+            SessionMgr->>BlueTeam: Re-encrypt bundle via Kafka blue.evaluation
+            BlueTeam->>BlueTeam: Evaluate toxicity with LoRA Toxic-BERT
+            BlueTeam->>WSGateway: Emit classification to Kafka classifications
+            WSGateway-->>Frontend: WebSocket {"type": "classification", data: {...}}
+            WSGateway-->>Frontend: WebSocket {"type": "progress", data: {...}}
+        end
+    end
+
+    BlueTeam->>BenchSvc: Publish final report to Kafka benchmark.reports
+    BenchSvc->>BenchSvc: Update benchmark_runs (status='completed', bypass_rate)
+    BenchSvc->>SessionMgr: POST /session/end (Destroy session keys & purge memory)
+    WSGateway-->>Frontend: WebSocket {"type": "session_ended", data: {...}}
+    Frontend->>User: Display completed status & enable "VIEW FINAL RESULTS"
+```
+
+---
+
+## 4. Sandboxed Inference Engine Architecture
+
+Located in [bayora/services/llm_proxy/inference.py](file:///bayora/services/llm_proxy/inference.py), the `SandboxedInference` engine enforces security barriers on untrusted LLM outputs:
 
 ```mermaid
 flowchart TD
-    subgraph Step1["1. Configuration & Trigger"]
-        A["User configures audit on /config (Provider, Domain, Budget)"] --> B["PUT /config/settings & POST /config/api-key (Auth Service)"]
-        B --> C["POST /drills/run (Benchmark Service :8006)"]
+    PromptIn[Untrusted Adversarial Prompt] --> LLMEngine{Inference Engine}
+    
+    LLMEngine -->|MOCK_LLM=1| MockGen[Synthetic Mock Response]
+    LLMEngine -->|GOOGLE_API_KEY| GeminiGen[Google Gemini API]
+    LLMEngine -->|OLLAMA_HOST| OllamaGen[Local Ollama API :11434]
+    LLMEngine -->|Local GPU/CPU| vLLMGen[vLLM or HuggingFace Transformers]
+
+    MockGen --> FilterStage[Sandbox Output Filters]
+    GeminiGen --> FilterStage
+    OllamaGen --> FilterStage
+    vLLMGen --> FilterStage
+
+    subgraph "Defense Filters (_apply_sandbox_filters)"
+        FilterStage --> EchoCheck{Prompt Echo Check}
+        EchoCheck -->|Prompt substring found| RedactEcho["Replace with [ECHO_FILTERED]"]
+        EchoCheck -->|No echo| SystemMarkerCheck{System Marker Check}
+        RedactEcho --> SystemMarkerCheck
+        
+        SystemMarkerCheck -->|Matches <<SYS>>, INST, etc.| StripMarker[Truncate at marker]
+        SystemMarkerCheck -->|Clean| SemanticCheck{Embedding Cosine Similarity}
+        StripMarker --> SemanticCheck
+
+        SemanticCheck -->|Cosine Sim > 0.75| BlockLeak["Block: [SEMANTIC_ECHO_FILTERED]"]
+        SemanticCheck -->|Clean| CleanOutput[Sanitized Response]
     end
 
-    subgraph Step2["2. Session Initialization"]
-        C --> D["Benchmark Service calls POST /session/start (:8000)"]
-        D --> E["Session Manager generates UUID & SESSION_KEY"]
-        E --> F["Session Manager logs 'SESSION_START' to 'audit.events'"]
-        F --> G["Benchmark Service creates DB record in 'benchmark_runs'"]
-        G --> H["Benchmark Service spawns 'monitor_session' polling task"]
-    end
-
-    subgraph Step3["3. Adversarial Stream"]
-        G --> I["Benchmark Service calls POST /attack/stream (:8003)"]
-        I --> J["Red Team background worker loads dataset prompts"]
-        J --> K["Mutates prompts (Jailbreak / DAN / Roleplay / PAIR / GCG)"]
-        K --> L["Encrypts with RED_KEY & streams to Kafka 'red.prompts'"]
-    end
-
-    subgraph Step4["4. Inference & Sandboxing"]
-        L --> M["Session Manager consumes 'red.prompts', re-encrypts with LLM_KEY"]
-        M --> N["Publishes to Kafka 'llm.requests' with session_key in header"]
-        N --> O["LLM Proxy consumes 'llm.requests', decrypts with LLM_KEY"]
-        O --> P["Executes inference (Ollama / Gemini / Transformers / Mock)"]
-        P --> Q["Applies Echo & Semantic Cosine Filters"]
-        Q --> R["Encrypts response with SESSION_KEY & sends to 'llm.responses'"]
-    end
-
-    subgraph Step5["5. Batching & Defense Classification"]
-        R --> S["Session Manager buffers responses (decrypts with SESSION_KEY)"]
-        S --> T["Upon 5 responses or session end: Encrypts bundle with BLUE_KEY"]
-        T --> U["Publishes to Kafka 'blue.evaluation'"]
-        U --> V["Blue Team consumes bundle, decrypts with BLUE_KEY"]
-        V --> W["Evaluates toxic/harmful classification via LoRA toxic-bert"]
-        W --> X["Emits individual events to 'classifications' topic"]
-        W --> Y["Emits final report to 'benchmark.reports' topic"]
-    end
-
-    subgraph Step6["6. Real-time Telemetry & Finalization"]
-        X --> Z["WebSocket Gateway (:8011) consumes 'classifications'"]
-        Z --> AA["Broadcasts live JSON frames to UI at /audit"]
-        Y --> AB["Benchmark Service consumes 'benchmark.reports'"]
-        AB --> AC["Updates 'benchmark_runs' (total_pairs, harmful, bypass_rate)"]
-        AC --> AD["Calls POST /session/end (:8000)"]
-        AD --> AE["Session keys destroyed; Session closed"]
-        AE --> AF["UI navigates to /results displaying Certificate Seal"]
+    subgraph "Session Termination (end_session)"
+        CleanOutput --> VRAMPurge[Explicit VRAM & KV Cache Purging]
+        VRAMPurge --> DestroyParallel[destroy_model_parallel]
+        VRAMPurge --> DeleteModel[del self.model, del self.tokenizer]
+        VRAMPurge --> CudaEmpty[torch.cuda.empty_cache + gc.collect]
     end
 ```
 
 ---
 
-## 4. Tamper-Evident Forensic Audit Architecture
+## 5. Standalone Runners Architecture
 
-Centinela implements an append-only, cryptographic hash-chained audit log implemented in [bayora/services/audit_service/main.py](file:///bayora/services/audit_service/main.py).
+To enable rapid local development and demoing without complex distributed infrastructure, Centinela includes two purpose-built runners:
 
-```mermaid
-flowchart LR
-    Genesis["Genesis Block\nHash: SHA256('genesis')"] --> Entry1["Audit Entry #1\nevent_type: SESSION_START\npayload_hash: SHA256(payload)\nprev_hash: SHA256('genesis')\nentry_hash: SHA256(entry)"]
-    Entry1 --> Entry2["Audit Entry #2\nevent_type: PROMPT_SENT\npayload_hash: SHA256(prompt)\nprev_hash: Entry1.entry_hash\nentry_hash: SHA256(entry)"]
-    Entry2 --> Entry3["Audit Entry #3\nevent_type: RESPONSE_RECEIVED\npayload_hash: SHA256(response)\nprev_hash: Entry2.entry_hash\nentry_hash: SHA256(entry)"]
-    Entry3 --> EntryN["Audit Entry #N\nevent_type: SESSION_END\npayload_hash: SHA256(payload)\nprev_hash: Entry(N-1).entry_hash\nentry_hash: SHA256(entry)"]
-```
+### 1. `demo_server.py` (Single-Process Zero-Dependency Runner)
+- Spawns background threads within a single Python runtime:
+  - Port 8004: Mock Auth & Settings service
+  - Port 8006: Mock Benchmark service with in-memory `RUNS_DB`
+  - Port 8000: Mock Session Manager with static cryptographic verification proof
+  - Port 8011: Mock WebSocket Gateway streaming 25 simulated attacks (Prompt Injection, DAN, Roleplay, GCG) with realistic pacing and confidence scores.
+- Allows recording demos and testing UI components with zero external dependencies.
 
-### Verification Algorithm (`GET /verify`)
-1. Fetches all rows from `audit_entries` ordered by `id ASC`.
-2. Sets `current_prev = SHA256("genesis")`.
-3. For each row:
-   - Validates that `row.prev_hash == current_prev`. If mismatched, returns `(False, index, current_prev)`.
-   - Recomputes `recomputed_hash = SHA256(json.dumps(row_without_entry_hash, sort_keys=True))`.
-   - Validates that `recomputed_hash == row.entry_hash`. If mismatched, returns `(False, index, current_prev)`.
-   - Advances `current_prev = recomputed_hash`.
-4. Returns `{"valid": True, "chain_length": count, "head_hash": current_prev}`.
+### 2. `run_backend.py` (Direct Microservices Process Supervisor)
+- Launches all 8 production FastAPI microservice modules in parallel local processes via `subprocess.Popen`:
+  - `bayora.services.auth_service.main:app` (:8004)
+  - `bayora.services.session_manager.main:app` (:8000)
+  - `bayora.services.audit_service.main:app` (:8005)
+  - `bayora.services.benchmark_service.main:app` (:8006)
+  - `bayora.services.red_team.main:app` (:8003)
+  - `bayora.services.blue_team.main:app` (:8001)
+  - `bayora.services.llm_proxy.main:app` (:8002)
+  - `bayora.services.audit_gateway.main:app` (:8011)
+- Automatically initializes environment variables, generates cryptographic Fernet keys in-memory, sets `MOCK_LLM=1`, and provides graceful SIGINT shutdown handling.
 
 ---
 
-## 5. Deployment Topologies
+## 6. Cloud Deployment Topology (Kubernetes & Istio)
 
-The repository contains two distinct deployment specifications:
-
-### Topology A: Cloud-Native Kubernetes / EKS Production ([bayora/infra/k8s/](file:///bayora/infra/k8s/))
-- **Isolation Runtime:** gVisor (`runsc` via `RuntimeClass: gvisor-sandboxed`) on AWS EKS managed tenant node group (`m5.xlarge`).
-- **Network Enforcement:** Kubernetes NetworkPolicies with `default-deny-all` across namespaces `red-team`, `blue-team`, `llm-sandbox`, `session-manager`.
-- **Service Mesh:** Istio with `STRICT` PeerAuthentication mTLS and AuthorizationPolicies restricting ingress exclusively to authorized ServiceAccounts (`session-manager-sa`, `red-team-sa`, etc.).
-- **Security Monitoring:** Falco eBPF daemonset monitoring cross-namespace DNS probes, blocked syscalls (`ptrace`, `perf_event_open`), and unauthorized filesystem access.
-- **Message Broker:** Strimzi Kafka Operator running inside namespace `kafka`.
-
-### Topology B: Local Development / Integration ([docker-compose.yml](file:///docker-compose.yml))
-- Containers running on standard Docker daemon with port forwarding:
-  - `gateway`: Nginx reverse proxy on `:8010`
-  - `session-manager`: `:8000`
-  - `blue-team`: `:8001`
-  - `llm-proxy`: `:8002`
-  - `red-team`: `:8003`
-  - `auth-service`: `:8004`
-  - `audit-service`: `:8005`
-  - `benchmark-service`: `:8006`
-  - `audit-gateway`: `:8011`
-  - `postgres`: PostgreSQL 16 on `:5432`
-  - `mongodb`: MongoDB on `:27017`
-  - `kafka` + `zookeeper`: Confluent Platform 7.5.0 on `:9092`
-  - Frontend: React / TanStack Start running via Vite on `:5173` or `:8080`.
+In production Kubernetes deployments:
+- **Namespaces:** `session-manager`, `audit-log`, `blue-team`, `red-team`, `llm-sandbox`, `benchmark`, `kafka`.
+- **Runtime Sandboxing:** `session-manager`, `blue-team`, `red-team`, and `llm-proxy` declare `runtimeClassName: gvisor-sandboxed`, executing containers under the gVisor `runsc` application kernel to intercept unauthorized syscalls.
+- **Service Mesh & Network Policies:** Istio enforces `STRICT` mTLS peer authentication. Default-deny Kubernetes network policies prevent any direct IP routing between `red-team` and `blue-team` or `llm-sandbox`.
+- **Intrusion Detection:** Falco monitors container runtime behavior, detecting cross-namespace DNS probes or blocked syscall invocations (`ptrace`, `perf_event_open`). Violations trigger automated session termination via `bayora/services/session_manager/violations.py`.

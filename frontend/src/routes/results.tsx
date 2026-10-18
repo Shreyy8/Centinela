@@ -43,7 +43,8 @@ interface RunResult {
 
 function Results() {
   const navigate = useNavigate();
-  const { session_id } = useSearch({ from: Route.id });
+  const { session_id: querySessionId } = useSearch({ from: Route.id });
+  const session_id = querySessionId || "default_audit";
   const [run, setRun] = useState<RunResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

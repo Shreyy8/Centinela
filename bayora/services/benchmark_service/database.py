@@ -12,6 +12,7 @@ class BenchmarkDatabase:
         self.password = os.getenv("POSTGRES_PASSWORD", "bayora_password")
         self.dbname = os.getenv("POSTGRES_DB", "bayora_benchmark")
         self.conn = None
+        self._memory_runs = {}
         self._init_db()
 
     def _init_db(self):
@@ -55,21 +56,49 @@ class BenchmarkDatabase:
                 """)
             print("✅ Benchmark Database initialized.")
         except Exception as e:
-            print(f"⚠️ Benchmark DB Init Error: {e}")
+            print(f"⚠️ Benchmark DB Init Notice: {e}. Running with in-memory ledger.")
 
     def create_run(self, session_id, drill_name, dataset_name, dataset_version, adapter_version, total_attacks=0):
-        if not self.conn: return None
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO benchmark_runs (session_id, drill_name, dataset_name, dataset_version, adapter_version, total_attacks, status, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, 'running', %s)
-                ON CONFLICT (session_id) DO UPDATE SET status = 'running'
-                RETURNING id;
-            """, (session_id, drill_name, dataset_name, dataset_version, adapter_version, total_attacks, datetime.now(timezone.utc)))
-            row = cur.fetchone()
-            return row[0] if row else None
+        now_str = datetime.now(timezone.utc).isoformat()
+        self._memory_runs[session_id] = {
+            "id": len(self._memory_runs) + 1,
+            "session_id": session_id,
+            "drill_name": drill_name,
+            "dataset_name": dataset_name,
+            "dataset_version": dataset_version,
+            "adapter_version": adapter_version,
+            "total_attacks": total_attacks,
+            "attacks_sent": 0,
+            "responses_received": 0,
+            "total_pairs": 0,
+            "harmful_detected": 0,
+            "bypass_rate": 0.0,
+            "status": "running",
+            "report": None,
+            "created_at": now_str,
+            "completed_at": None,
+        }
+        if not self.conn:
+            return self._memory_runs[session_id]["id"]
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO benchmark_runs (session_id, drill_name, dataset_name, dataset_version, adapter_version, total_attacks, status, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, 'running', %s)
+                    ON CONFLICT (session_id) DO UPDATE SET status = 'running'
+                    RETURNING id;
+                """, (session_id, drill_name, dataset_name, dataset_version, adapter_version, total_attacks, datetime.now(timezone.utc)))
+                row = cur.fetchone()
+                return row[0] if row else self._memory_runs[session_id]["id"]
+        except Exception:
+            return self._memory_runs[session_id]["id"]
 
     def update_progress(self, session_id, attacks_sent=None, responses_received=None):
+        if session_id in self._memory_runs:
+            if attacks_sent is not None:
+                self._memory_runs[session_id]["attacks_sent"] = attacks_sent
+            if responses_received is not None:
+                self._memory_runs[session_id]["responses_received"] = responses_received
         if not self.conn: return
         sets = []
         params = []
@@ -82,72 +111,105 @@ class BenchmarkDatabase:
         if not sets:
             return
         params.append(session_id)
-        with self.conn.cursor() as cur:
-            cur.execute(f"UPDATE benchmark_runs SET {', '.join(sets)} WHERE session_id = %s", tuple(params))
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(f"UPDATE benchmark_runs SET {', '.join(sets)} WHERE session_id = %s", tuple(params))
+        except Exception:
+            pass
 
     def update_run(self, session_id, report):
-        if not self.conn: return
         summary = report.get("summary", {})
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                UPDATE benchmark_runs 
-                SET total_pairs = %s, harmful_detected = %s, bypass_rate = %s,
-                    status = 'completed', report = %s::jsonb, completed_at = %s
-                WHERE session_id = %s;
-            """, (
-                summary.get("total_pairs"),
-                summary.get("harmful_detected"),
-                summary.get("bypass_rate"),
-                json.dumps(report),
-                datetime.now(timezone.utc),
-                session_id,
-            ))
+        if session_id in self._memory_runs:
+            self._memory_runs[session_id].update({
+                "total_pairs": summary.get("total_pairs", 0),
+                "harmful_detected": summary.get("harmful_detected", 0),
+                "bypass_rate": summary.get("bypass_rate", 0.0),
+                "status": "completed",
+                "report": report,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            })
+        if not self.conn: return
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE benchmark_runs 
+                    SET total_pairs = %s, harmful_detected = %s, bypass_rate = %s,
+                        status = 'completed', report = %s::jsonb, completed_at = %s
+                    WHERE session_id = %s;
+                """, (
+                    summary.get("total_pairs"),
+                    summary.get("harmful_detected"),
+                    summary.get("bypass_rate"),
+                    json.dumps(report),
+                    datetime.now(timezone.utc),
+                    session_id,
+                ))
+        except Exception:
+            pass
 
     def cancel_run(self, session_id):
+        if session_id in self._memory_runs:
+            self._memory_runs[session_id]["status"] = "cancelled"
+            self._memory_runs[session_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
         if not self.conn: return
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                UPDATE benchmark_runs SET status = 'cancelled', completed_at = %s
-                WHERE session_id = %s AND status = 'running';
-            """, (datetime.now(timezone.utc), session_id))
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE benchmark_runs SET status = 'cancelled', completed_at = %s
+                    WHERE session_id = %s AND status = 'running';
+                """, (datetime.now(timezone.utc), session_id))
+        except Exception:
+            pass
 
     def get_run(self, session_id):
-        if not self.conn: return None
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM benchmark_runs WHERE session_id = %s", (session_id,))
-            row = cur.fetchone()
-            if row:
-                row["created_at"] = str(row["created_at"]) if row.get("created_at") else None
-                row["completed_at"] = str(row["completed_at"]) if row.get("completed_at") else None
-            return dict(row) if row else None
+        if not self.conn:
+            return self._memory_runs.get(session_id)
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM benchmark_runs WHERE session_id = %s", (session_id,))
+                row = cur.fetchone()
+                if row:
+                    row["created_at"] = str(row["created_at"]) if row.get("created_at") else None
+                    row["completed_at"] = str(row["completed_at"]) if row.get("completed_at") else None
+                    return dict(row)
+        except Exception:
+            pass
+        return self._memory_runs.get(session_id)
 
     def get_runs_by_user(self, user_email, limit=20):
-        if not self.conn: return []
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
-                SELECT * FROM benchmark_runs
-                WHERE drill_name LIKE %s
-                ORDER BY created_at DESC LIMIT %s
-            """, (f"%{user_email}%", limit))
-            rows = cur.fetchall()
-            result = []
-            for row in rows:
-                d = dict(row)
-                d["created_at"] = str(d["created_at"]) if d.get("created_at") else None
-                d["completed_at"] = str(d["completed_at"]) if d.get("completed_at") else None
-                result.append(d)
-            return result
+        if not self.conn:
+            return list(self._memory_runs.values())[:limit]
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM benchmark_runs
+                    WHERE drill_name LIKE %s
+                    ORDER BY created_at DESC LIMIT %s
+                """, (f"%{user_email}%", limit))
+                rows = cur.fetchall()
+                result = []
+                for row in rows:
+                    d = dict(row)
+                    d["created_at"] = str(d["created_at"]) if d.get("created_at") else None
+                    d["completed_at"] = str(d["completed_at"]) if d.get("completed_at") else None
+                    result.append(d)
+                return result
+        except Exception:
+            return list(self._memory_runs.values())[:limit]
 
     def get_leaderboard(self):
         if not self.conn: return []
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
-                SELECT adapter_version, AVG(bypass_rate) as avg_bypass_rate, COUNT(*) as run_count
-                FROM benchmark_runs 
-                WHERE status = 'completed'
-                GROUP BY adapter_version
-                ORDER BY avg_bypass_rate ASC;
-            """)
-            return list(cur.fetchall())
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT adapter_version, AVG(bypass_rate) as avg_bypass_rate, COUNT(*) as run_count
+                    FROM benchmark_runs 
+                    WHERE status = 'completed'
+                    GROUP BY adapter_version
+                    ORDER BY avg_bypass_rate ASC;
+                """)
+                return list(cur.fetchall())
+        except Exception:
+            return []
 
 db = BenchmarkDatabase()

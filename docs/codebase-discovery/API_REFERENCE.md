@@ -1,307 +1,366 @@
-# Centinela (Bayora) — Complete API & Interface Reference
+# Centinela (Bayora) — API & Interface Reference
 
-> **Component:** HTTP REST APIs, WebSocket Feeds & Gateway Routes  
-> **Repository:** [Centinela](https://github.com/Shreyy8/Centinela.git)  
+> **Document Type:** API Catalog & Communication Interface Reference  
+> **Repository:** [Centinela (formerly Bayora)](https://github.com/Shreyy8/Centinela.git)  
+> **Status:** Code-verified against route handlers  
 
 ---
 
-## 1. Unified Gateway Routing Table (Nginx)
+## 1. Unified Gateway Routing (Nginx Port 8010)
 
-The reverse proxy defined in [infra/nginx/centinela-gateway.conf](file:///infra/nginx/centinela-gateway.conf) listens on **port 8010** and routes incoming traffic to the internal microservices:
+Defined in [infra/nginx/centinela-gateway.conf](file:///infra/nginx/centinela-gateway.conf), the edge gateway exposes public endpoints by proxying internal microservices:
 
-| External Gateway Path | Internal Upstream Service | Upstream Port | Notes & Headers |
+| Gateway Path | Upstream Target | Upstream Port | Purpose |
 |---|---|---|---|
-| `/api/auth/*` | `http://auth-service:8004/auth/*` | 8004 | Strips prefix `/api/auth/` -> `/auth/` |
-| `/api/config/*` | `http://auth-service:8004/config/*` | 8004 | Strips prefix `/api/config/` -> `/config/` |
-| `/api/session/*` | `http://session-manager:8000/session/*` | 8000 | Strips prefix `/api/session/` -> `/session/` |
-| `/api/audit/verify/*` | `http://session-manager:8000/audit/verify/*` | 8000 | Redirects to session-manager stub |
-| `/api/verify` | `http://audit-service:8005/verify` | 8005 | Direct proxy to immutable audit ledger |
-| `/api/drills/*` | `http://benchmark-service:8006/drills/*` | 8006 | Strips prefix `/api/drills/` -> `/drills/` |
-| `/api/leaderboard` | `http://benchmark-service:8006/leaderboard` | 8006 | Direct proxy to leaderboard |
-| `/api/datasets` | `http://benchmark-service:8006/datasets` | 8006 | Direct proxy to datasets |
-| `/api/attack/*` | `http://red-team:8003/attack/*` | 8003 | Strips prefix `/api/attack/` -> `/attack/` |
-| `/api/evaluate/*` | `http://blue-team:8001/evaluate/*` | 8001 | Strips prefix `/api/evaluate/` -> `/evaluate/` |
-| `/api/llm/*` | `http://llm-proxy:8002/llm/*` | 8002 | Strips prefix `/api/llm/` -> `/llm/` |
-| `/ws/*` | `http://audit-gateway:8011/ws/*` | 8011 | WebSocket upgrade proxy (`Upgrade`, `Connection`) |
+| `/api/auth/` | `auth-service` | 8004 | Authentication & user credentials |
+| `/api/config/` | `auth-service` | 8004 | Target model config & encrypted API keys |
+| `/api/session/` | `session-manager` | 8000 | Session creation and inference proxying |
+| `/api/audit/verify/` | `session-manager` | 8000 | Legacy verification redirect |
+| `/api/verify` | `audit-service` | 8005 | Cryptographic Merkle chain verification |
+| `/api/drills/` | `benchmark-service` | 8006 | Drill execution, progress, and status |
+| `/api/leaderboard` | `benchmark-service` | 8006 | Defense adapter rankings |
+| `/api/datasets` | `benchmark-service` | 8006 | Dataset metadata catalog |
+| `/api/attack/` | `red-team` | 8003 | Adversarial attack generation |
+| `/api/evaluate/` | `blue-team` | 8001 | Defense classification |
+| `/api/llm/` | `llm-proxy` | 8002 | Sandboxed inference fallback |
+| `/ws/` | `audit-gateway` | 8011 | Real-time WebSocket telemetry |
 
-> **Architecture Note:** While Nginx configures these routes on port 8010, the current frontend API client ([frontend/src/lib/api.ts](file:///frontend/src/lib/api.ts#L1-L5)) connects directly to individual port bindings (`8004`, `8006`, `8000`, `8011`) on `localhost`.
+*Architectural Finding:* In local development and demos, [frontend/src/lib/api.ts](file:///frontend/src/lib/api.ts#L1-L4) bypasses Nginx and binds directly to `localhost:8004`, `8006`, `8000`, and `8011`.
 
 ---
 
-## 2. Microservice REST API Inventory
+## 2. Auth & Config Service (Port 8004)
 
-### 2.1 Auth & Config Service (`:8004`)
-Source: [bayora/services/auth_service/main.py](file:///bayora/services/auth_service/main.py)
+Source: [bayora/services/auth_service/main.py](file:///bayora/services/auth_service/main.py).
 
-#### `POST /auth/signup`
-- **Purpose:** Registers a new user account with hashed password.
-- **Handler:** `signup(user: UserSignup)` ([line 80](file:///bayora/services/auth_service/main.py#L80))
+### `POST /auth/signup`
+- **Purpose:** Registers a new user account.
 - **Auth:** Public.
-- **Input:** JSON body: `{"email": "string", "password": "string"}`.
-- **Output:** `200 OK` -> `{"message": "User created successfully"}`.
-- **Side Effects:** Writes to MongoDB `bayora_auth.users`.
-- **Errors:** `400 Bad Request` if user already exists (`detail: "User already exists"`).
-- **Consumers:** [frontend/src/routes/register.tsx](file:///frontend/src/routes/register.tsx).
+- **Request Body:** `{"email": "string", "password": "string"}`.
+- **Response (200):** `{"message": "User registered successfully"}`.
+- **Failure (400):** `{"detail": "User already exists"}`.
 
-#### `POST /auth/login`
-- **Purpose:** Authenticates credentials and issues a signed JWT access token.
-- **Handler:** `login(user_data: UserLogin)` ([line 93](file:///bayora/services/auth_service/main.py#L93))
+### `POST /auth/login`
+- **Purpose:** Authenticates user credentials and issues an HMAC-SHA256 JWT access token.
 - **Auth:** Public.
-- **Input:** JSON body: `{"email": "string", "password": "string"}`.
-- **Output:** `200 OK` -> `{"access_token": "jwt_string", "token_type": "bearer", "email": "string"}`.
-- **Errors:** `401 Unauthorized` if invalid email or password.
-- **Consumers:** [frontend/src/routes/login.tsx](file:///frontend/src/routes/login.tsx).
+- **Request Body:** `{"email": "string", "password": "string"}`.
+- **Response (200):** `{"access_token": "string", "token_type": "bearer", "email": "string"}`.
+- **Failure (401):** `{"detail": "Invalid credentials"}`.
 
-#### `POST /auth/logout`
-- **Purpose:** Client logout notification.
-- **Handler:** `logout()` ([line 105](file:///bayora/services/auth_service/main.py#L105))
-- **Auth:** Public (stateless).
-- **Output:** `200 OK` -> `{"message": "Successfully logged out"}`.
+### `POST /auth/logout`
+- **Purpose:** Client session invalidation.
+- **Auth:** Requires JWT Bearer token (or demo bypass).
+- **Response (200):** `{"message": "Logged out successfully"}`.
 
-#### `POST /config/api-key`
-- **Purpose:** Encrypts and persists third-party LLM provider API key.
-- **Handler:** `save_api_key(req: ApiKeyRequest, email: str = Depends(get_current_user))` ([line 110](file:///bayora/services/auth_service/main.py#L110))
-- **Auth:** Bearer JWT required in `Authorization` header.
-- **Input:** JSON body: `{"api_key": "string"}`.
-- **Output:** `200 OK` -> `{"status": "saved"}`.
-- **Side Effects:** Upserts into MongoDB `bayora_auth.configs` with Fernet-encrypted value.
-- **Consumers:** [frontend/src/routes/config.tsx](file:///frontend/src/routes/config.tsx#L66).
+### `POST /config/api-key`
+- **Purpose:** Stores an encrypted LLM provider API key for the current user.
+- **Auth:** Requires JWT Bearer token.
+- **Request Body:** `{"api_key": "string"}`.
+- **Side Effects:** Key is encrypted with Fernet and upserted to MongoDB `configs` collection.
+- **Response (200):** `{"status": "saved"}`.
 
-#### `GET /config/api-key`
-- **Purpose:** Checks if an API key is stored and returns a safe masked preview.
-- **Handler:** `get_api_key(email: str = Depends(get_current_user))` ([line 120](file:///bayora/services/auth_service/main.py#L120))
-- **Auth:** Bearer JWT required.
-- **Output:** `200 OK` -> `{"has_key": bool, "key_preview": "sk-1...abcd" | null}`.
+### `GET /config/api-key`
+- **Purpose:** Checks if user has a configured API key and returns a redacted preview.
+- **Auth:** Requires JWT Bearer token.
+- **Response (200):** `{"has_key": true, "key_preview": "sk-p...9aX2"}`.
 
-#### `DELETE /config/api-key`
-- **Purpose:** Deletes the stored encrypted API key.
-- **Handler:** `delete_api_key(email: str = Depends(get_current_user))` ([line 128](file:///bayora/services/auth_service/main.py#L128))
-- **Auth:** Bearer JWT required.
-- **Output:** `200 OK` -> `{"status": "deleted"}`.
+### `DELETE /config/api-key`
+- **Purpose:** Removes stored API key from user configuration.
+- **Auth:** Requires JWT Bearer token.
+- **Response (200):** `{"status": "deleted"}`.
 
-#### `PUT /config/settings`
-- **Purpose:** Stores user audit parameters (provider, model, domain, severity, budget, system prompt).
-- **Handler:** `save_settings(settings: ConfigSettings, email: str = Depends(get_current_user))` ([line 136](file:///bayora/services/auth_service/main.py#L136))
-- **Auth:** Bearer JWT required.
-- **Input:** JSON body matching `ConfigSettings` model.
-- **Output:** `200 OK` -> `{"status": "saved"}`.
-- **Consumers:** [frontend/src/routes/config.tsx](file:///frontend/src/routes/config.tsx#L54).
+### `PUT /config/settings`
+- **Purpose:** Persists audit parameters (target provider, model, domain, severity, budget, system prompt, org, auditor).
+- **Auth:** Requires JWT Bearer token.
+- **Request Body:**
+  ```json
+  {
+    "provider": "OPENAI",
+    "model": "gpt-4-turbo-preview",
+    "domain": "Healthcare",
+    "severity": "MEDIUM",
+    "budget": 250,
+    "system_prompt": "string",
+    "organization": "Northwind Health",
+    "auditor": "Sarah Chen, CISO"
+  }
+  ```
+- **Response (200):** `{"status": "saved"}`.
 
-#### `GET /config/settings`
-- **Purpose:** Fetches current saved audit parameters.
-- **Handler:** `get_settings(email: str = Depends(get_current_user))` ([line 145](file:///bayora/services/auth_service/main.py#L145))
-- **Auth:** Bearer JWT required.
-- **Output:** `200 OK` -> JSON representation of `ConfigSettings`.
-
----
-
-### 2.2 Session Manager (`:8000`)
-Source: [bayora/services/session_manager/main.py](file:///bayora/services/session_manager/main.py)
-
-#### `POST /session/start`
-- **Purpose:** Creates a new test session, generates dynamic 32-byte Fernet `SESSION_KEY`, and logs start event.
-- **Handler:** `start_session(user: dict = Depends(verify_token))` ([line 113](file:///bayora/services/session_manager/main.py#L113))
-- **Auth:** Temporary no-op stub dependency (`verify_token` returns `{"user": "anonymous"}`).
-- **Input:** None.
-- **Output:** `200 OK` -> `{"session_id": "uuid", "session_key": "base64_key"}`.
-- **Side Effects:** Stores key in `message_bus.session_keys`; publishes `SESSION_START` to Kafka `audit.events`.
-- **Consumers:** Benchmark Service ([bayora/services/benchmark_service/main.py:158](file:///bayora/services/benchmark_service/main.py#L158)).
-- **Tests:** [tests/integration/test_session_manager.py:14](file:///tests/integration/test_session_manager.py#L14).
-
-#### `POST /session/infer`
-- **Purpose:** HTTP fallback/direct entry point to submit red team prompts into the mediated bus.
-- **Handler:** `infer(req: InferRequest, user: dict = Depends(verify_token))` ([line 127](file:///bayora/services/session_manager/main.py#L127))
-- **Input:** JSON: `{"session_id": "string", "encrypted_prompt": "base64_string"}`.
-- **Output:** `200 OK` -> `{"status": "queued_to_kafka"}`.
-- **Side Effects:** Decrypts prompt with `RED_KEY`, re-encrypts with `LLM_KEY`, produces to `llm.requests`.
-- **Errors:** `404 Not Found` if session does not exist.
-
-#### `POST /session/end`
-- **Purpose:** Closes session, flushes remaining unreleased batch to Blue Team, logs audit event, and purges keys.
-- **Handler:** `end_session(session_id: str, user: dict = Depends(verify_token))` ([line 144](file:///bayora/services/session_manager/main.py#L144))
-- **Query Param:** `session_id=UUID`.
-- **Output:** `200 OK` -> `{"status": "ended_batch_released"}`.
-- **Side Effects:** Destroys `session_keys[session_id]` and buffers; emits `SESSION_END` to `audit.events`.
-
-#### `GET /session/{session_id}/status`
-- **Purpose:** Checks if session is active or ended.
-- **Handler:** `session_status(session_id: str, user: dict = Depends(verify_token))` ([line 161](file:///bayora/services/session_manager/main.py#L161))
-- **Output:** `200 OK` -> `{"status": "active" | "ended_or_not_found"}`.
-
-#### `GET /audit/verify/{session_id}`
-- **Purpose:** Stub endpoint pointing to decentralized audit service.
-- **Handler:** `verify_audit(session_id: str)` ([line 168](file:///bayora/services/session_manager/main.py#L168))
-- **Output:** `200 OK` -> `{"valid": true, "chain_length": 0, "head_hash": "N/A", "message": "Forensic audit is now decentralized. Query the Audit Service at /verify for immutable proofs."}`.
+### `GET /config/settings`
+- **Purpose:** Retrieves saved configuration for current user.
+- **Auth:** Requires JWT Bearer token.
+- **Response (200):** Returns settings object matching `PUT /config/settings`.
 
 ---
 
-### 2.3 Benchmark Service (`:8006`)
-Source: [bayora/services/benchmark_service/main.py](file:///bayora/services/benchmark_service/main.py)
+## 3. Session Manager (Port 8000)
 
-#### `POST /drills/run`
-- **Purpose:** Primary orchestrator endpoint that initiates an automated adversarial safety drill.
-- **Handler:** `run_drill(req: DrillRequest)` ([line 145](file:///bayora/services/benchmark_service/main.py#L145))
-- **Input:** JSON: `{"drill_name": str, "dataset_name": Optional[str], "strategy": Optional[str], "count": int, "domain": Optional[str]}`.
-- **Output:** `200 OK` -> `{"status": "drill_started", "session_id": str, "drill_name": str, "dataset_name": str}`.
-- **Side Effects:** Starts session via HTTP on `:8000`, inserts record into PostgreSQL `benchmark_runs`, sends HTTP POST to `:8003/attack/stream`, spawns async session monitor task.
-- **Consumers:** [frontend/src/routes/config.tsx](file:///frontend/src/routes/config.tsx#L69).
+Source: [bayora/services/session_manager/main.py](file:///bayora/services/session_manager/main.py).
 
-#### `GET /drills/{session_id}/status`
-- **Purpose:** Retrieves real-time status and metrics of a running or completed drill.
-- **Handler:** `get_drill_status(session_id: str)` ([line 193](file:///bayora/services/benchmark_service/main.py#L193))
-- **Output:** `200 OK` -> Record from `benchmark_runs` table.
-- **Consumers:** [frontend/src/routes/results.tsx](file:///frontend/src/routes/results.tsx#L59).
+### `POST /session/start`
+- **Purpose:** Initializes a new isolated audit session, generating a mathematically unique dynamic Fernet key.
+- **Auth:** Currently `verify_token()` no-op hook (returns `user: anonymous`).
+- **Response (200):**
+  ```json
+  {
+    "session_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "session_key": "gAAAAABl...32-byte-fernet-key..."
+  }
+  ```
+- **Side Effects:** Stores key in `message_bus.session_keys`, emits `SESSION_START` to Kafka `audit.events`.
 
-#### `POST /drills/{session_id}/cancel`
-- **Purpose:** Aborts an in-progress drill.
-- **Handler:** `cancel_drill(session_id: str)` ([line 199](file:///bayora/services/benchmark_service/main.py#L199))
-- **Output:** `200 OK` -> `{"status": "cancelled", "session_id": str}`.
-- **Side Effects:** Calls `:8003/attack/stop/{session_id}` and `:8000/session/end`.
+### `POST /session/infer`
+- **Purpose:** Ingests an encrypted prompt from Red Team, re-encrypts it for LLM Proxy, and publishes to Kafka.
+- **Request Body:** `{"session_id": "string", "encrypted_prompt": "base64-fernet-string"}`.
+- **Response (200):** `{"status": "queued_to_kafka"}`.
+- **Side Effects:** Publishes to Kafka `llm.requests` with header `session_key`.
 
-#### `GET /drills/{session_id}/results`
-- **Purpose:** Fetches finalized audit report.
-- **Handler:** `get_drill_results(session_id: str)` ([line 225](file:///bayora/services/benchmark_service/main.py#L225))
-- **Errors:** `400 Bad Request` if drill status is not `completed`.
+### `POST /session/end`
+- **Purpose:** Flushes residual micro-batches, releases them to Blue Team, revokes dynamic keys, and logs completion.
+- **Query Parameter:** `session_id=string`.
+- **Response (200):** `{"status": "ended_batch_released"}`.
+- **Side Effects:** Deletes key from `message_bus.session_keys`, emits `SESSION_END` to Kafka `audit.events`.
 
-#### `GET /leaderboard`
-- **Purpose:** Returns historical benchmark rankings across models and datasets.
-- **Handler:** `get_leaderboard()` ([line 234](file:///bayora/services/benchmark_service/main.py#L234))
-- **Output:** `200 OK` -> Array of runs ordered by `created_at DESC LIMIT 50`.
+### `GET /session/{session_id}/status`
+- **Purpose:** Returns active/ended state of a session.
+- **Response (200):** `{"status": "active"}` or `{"status": "ended_or_not_found"}`.
 
-#### `GET /datasets`
-- **Purpose:** Lists available safety datasets from manifest.
-- **Handler:** `get_datasets()` ([line 238](file:///bayora/services/benchmark_service/main.py#L238))
-- **Output:** `200 OK` -> Array of dataset descriptor objects.
+### `GET /audit/verify/{session_id}`
+- **Purpose:** Legacy stub returning pointer to decentralized audit service.
+- **Response (200):** `{"valid": true, "chain_length": 0, "head_hash": "N/A", "message": "..."}`.
 
 ---
 
-### 2.4 Audit Service (`:8005`)
-Source: [bayora/services/audit_service/main.py](file:///bayora/services/audit_service/main.py)
+## 4. Benchmark Service (Port 8006)
 
-#### `GET /verify`
-- **Purpose:** Recomputes and validates the entire cryptographic SHA-256 hash chain of the audit log from genesis.
-- **Handler:** `verify_audit()` ([line 153](file:///bayora/services/audit_service/main.py#L153))
+Source: [bayora/services/benchmark_service/main.py](file:///bayora/services/benchmark_service/main.py).
+
+### `POST /drills/run`
+- **Purpose:** Initiates an automated adversarial drill across all microservices.
+- **Request Body:**
+  ```json
+  {
+    "drill_name": "Healthcare Audit - HIPAA & PII",
+    "dataset_name": "advbench",
+    "strategy": "all",
+    "count": 50,
+    "domain": "Healthcare"
+  }
+  ```
+- **Response (200):**
+  ```json
+  {
+    "status": "drill_started",
+    "session_id": "string",
+    "drill_name": "string",
+    "dataset_name": "string"
+  }
+  ```
+- **Side Effects:** Calls `POST /session/start` on Session Manager, inserts record into `benchmark_runs`, invokes `POST /attack/stream` on Red Team, and launches asynchronous `monitor_session` task.
+
+### `GET /drills/{session_id}/status`
+- **Purpose:** Polls progress and results of a specific drill run.
+- **Response (200):**
+  ```json
+  {
+    "id": 1,
+    "session_id": "string",
+    "drill_name": "string",
+    "dataset_name": "string",
+    "dataset_version": "1.0",
+    "adapter_version": "1.0",
+    "total_attacks": 50,
+    "attacks_sent": 50,
+    "responses_received": 50,
+    "total_pairs": 50,
+    "harmful_detected": 8,
+    "bypass_rate": 0.16,
+    "status": "completed",
+    "report": { "summary": { ... } },
+    "created_at": "2026-10-18T10:00:00Z",
+    "completed_at": "2026-10-18T10:02:15Z"
+  }
+  ```
+
+### `POST /drills/{session_id}/complete_mock`
+- **Purpose:** Allows Audit Gateway simulation to record completed mock drill metrics into the database.
+- **Request Body:** `{"summary": { "total_pairs": 25, "harmful_detected": 4, "bypass_rate": 0.16 }, "status": "completed"}`.
+- **Response (200):** `{"status": "updated"}`.
+
+### `POST /drills/{session_id}/cancel`
+- **Purpose:** Halts an active drill immediately, stopping red team attack generation and ending the session.
+- **Response (200):** `{"status": "cancelled", "session_id": "string"}`.
+
+### `GET /drills/{session_id}/results`
+- **Purpose:** Returns final benchmark report if drill is in `completed` status. Returns 400 if still running.
+
+### `GET /leaderboard`
+- **Purpose:** Aggregates defense performance across all completed runs grouped by `adapter_version`.
+- **Response (200):** `[{"adapter_version": "1.0", "avg_bypass_rate": 0.14, "run_count": 12}]`.
+
+### `GET /datasets`
+- **Purpose:** Lists available safety datasets from `bayora/datasets/manifest.json`.
+
+---
+
+## 5. Audit Service (Port 8005)
+
+Source: [bayora/services/audit_service/main.py](file:///bayora/services/audit_service/main.py).
+
+### `GET /verify`
+- **Purpose:** Public compliance verification endpoint. Traverses the entire audit log starting from genesis hash, recomputing SHA-256 digests of each entry to mathematically verify zero tampering.
 - **Auth:** Public.
-- **Output:** `200 OK` -> `{"valid": bool, "chain_length": int, "head_hash": "hex_string"}`.
-- **Algorithm:** Real-time sequential verification across all rows in `audit_entries`.
+- **Response (200):**
+  ```json
+  {
+    "valid": true,
+    "chain_length": 142,
+    "head_hash": "a8f3b2...64-char-hex-hash..."
+  }
+  ```
+- **Failure (200 with valid=false):** Returns `{"valid": false, "chain_length": N, "head_hash": "..."}` if any entry fails hash parity.
 
 ---
 
-### 2.5 Red Team Engine (`:8003`)
-Source: [bayora/services/red_team/main.py](file:///bayora/services/red_team/main.py)
+## 6. Red Team Engine (Port 8003)
 
-#### `POST /attack/generate`
-- **Purpose:** Generates a fixed batch of encrypted adversarial prompts synchronously.
-- **Handler:** `generate_attacks(req: GenerateRequest)` ([line 118](file:///bayora/services/red_team/main.py#L118))
-- **Input:** JSON: `{"strategy": str, "count": int, "session_id": str}`.
-- **Output:** `200 OK` -> `{"session_id": str, "strategy": str, "prompts": [base64_strings]}`.
-- **Tests:** [tests/integration/test_pipelines.py:17](file:///tests/integration/test_pipelines.py#L17).
+Source: [bayora/services/red_team/main.py](file:///bayora/services/red_team/main.py).
 
-#### `POST /attack/stream`
-- **Purpose:** Launches an asynchronous background streaming worker emitting attacks to Kafka `red.prompts`.
-- **Handler:** `stream_attacks(req: StreamRequest, background_tasks: BackgroundTasks)` ([line 140](file:///bayora/services/red_team/main.py#L140))
-- **Input:** JSON: `{"session_id": str, "count": int, "dataset_name": Optional[str], "strategy": Optional[str]}`.
-- **Output:** `200 OK` -> `{"status": "streaming_started", "session_id": str, "target_count": int}`.
+### `POST /attack/generate`
+- **Purpose:** Synchronously mutates base prompts using a selected strategy and returns encrypted payloads.
+- **Request Body:** `{"session_id": "string", "strategy": "jailbreak", "count": 10}`.
+- **Response (200):** `{"session_id": "string", "strategy": "jailbreak", "prompts": ["gAAAAAB..."]}`.
 
-#### `POST /attack/stop/{session_id}`
-- **Purpose:** Sets the cancellation event for an active streaming worker.
-- **Handler:** `stop_stream(session_id: str)` ([line 159](file:///bayora/services/red_team/main.py#L159))
-- **Output:** `200 OK` -> `{"status": "stop_signal_sent", "session_id": str}`.
+### `POST /attack/stream`
+- **Purpose:** Asynchronously streams mutated adversarial attacks to Kafka topic `red.prompts`.
+- **Request Body:** `{"session_id": "string", "count": 50, "dataset_name": "advbench", "strategy": "all"}`.
+- **Response (200):** `{"status": "streaming_started", "session_id": "string", "target_count": 50}` (or `mock_streaming_started` when Kafka is offline).
+
+### `POST /attack/stop/{session_id}`
+- **Purpose:** Signals the background streaming generator to halt.
+- **Response (200):** `{"status": "stop_signal_sent", "session_id": "string"}`.
 
 ---
 
-### 2.6 Blue Team Defense (`:8001`)
-Source: [bayora/services/blue_team/main.py](file:///bayora/services/blue_team/main.py)
+## 7. Blue Team Defense (Port 8001)
 
-#### `POST /evaluate/batch`
-- **Purpose:** Synchronous HTTP evaluation of an encrypted response bundle using the LoRA classifier.
-- **Handler:** `evaluate_batch(req: BatchEvaluationRequest)` ([line 110](file:///bayora/services/blue_team/main.py#L110))
-- **Input:** JSON: `{"session_id": str, "encrypted_bundle": "base64_string"}`.
-- **Output:** `200 OK` -> `{"session_id": str, "report": {"summary": {...}, "details": [...]}}`.
-- **Tests:** [tests/integration/test_pipelines.py:34](file:///tests/integration/test_pipelines.py#L34).
+Source: [bayora/services/blue_team/main.py](file:///bayora/services/blue_team/main.py).
+
+### `POST /evaluate/batch`
+- **Purpose:** Decrypts an encrypted bundle with `BLUE_KEY`, evaluates toxicity with Toxic-BERT LoRA classifier, and calculates Bypass Rate.
+- **Request Body:** `{"session_id": "string", "encrypted_bundle": "string"}`.
+- **Response (200):**
+  ```json
+  {
+    "session_id": "string",
+    "report": {
+      "summary": {
+        "total_pairs": 5,
+        "harmful_detected": 1,
+        "bypass_rate": 0.20
+      },
+      "details": [
+        {
+          "prompt": "Adversarial Prompt",
+          "response": "Model response snippet",
+          "is_harmful": true,
+          "confidence": 0.94
+        }
+      ]
+    }
+  }
+  ```
 
 ---
 
-### 2.7 LLM Proxy Sandbox (`:8002`)
-Source: [bayora/services/llm_proxy/main.py](file:///bayora/services/llm_proxy/main.py)
+## 8. LLM Sandbox Proxy (Port 8002)
 
-#### `POST /llm/infer`
+Source: [bayora/services/llm_proxy/main.py](file:///bayora/services/llm_proxy/main.py).
+
+### `POST /llm/infer`
 - **Purpose:** HTTP fallback endpoint for sandboxed inference.
-- **Handler:** `infer(req: LLMRequest)` ([line 76](file:///bayora/services/llm_proxy/main.py#L76))
-- **Input:** JSON: `{"session_id": str, "session_key": str, "encrypted_prompt": str}`.
-- **Output:** `200 OK` -> `{"encrypted_response": str}`.
+- **Request Body:** `{"session_id": "string", "session_key": "string", "encrypted_prompt": "string"}`.
+- **Response (200):** `{"encrypted_response": "string"}`.
 
-#### `POST /llm/session/end`
-- **Purpose:** Explicitly destroys model instance and purges VRAM cache.
-- **Handler:** `end_session()` ([line 87](file:///bayora/services/llm_proxy/main.py#L87))
-- **Output:** `200 OK` -> `{"status": "memory_cleared"}`.
+### `POST /llm/session/end`
+- **Purpose:** Triggers explicit VRAM deallocation and KV cache destruction.
+- **Response (200):** `{"status": "memory_cleared"}`.
 
 ---
 
-## 3. Real-Time WebSocket Interface (`:8011`)
-Source: [bayora/services/audit_gateway/main.py](file:///bayora/services/audit_gateway/main.py)
+## 9. WebSocket Audit Gateway (Port 8011)
 
-### Connection Handshake
-- **URL:** `ws://localhost:8011/ws/{session_id}?token={jwt_token}`
-- **Authentication:** `token` query parameter decoded via `jwt.decode(token, JWT_SECRET, algorithms=["HS256"])`.
-- **Failure:** Close code `4001` with reason `"Invalid token"` or `"Authentication failed"`.
+Source: [bayora/services/audit_gateway/main.py](file:///bayora/services/audit_gateway/main.py).
 
-### Inbound Client Messages
-- Heartbeat Ping: `{"type": "ping"}` -> Server replies: `{"type": "pong"}`.
+### `WS /ws/{session_id}?token={jwt_token}`
+- **Protocol:** WebSocket (RFC 6455).
+- **Authentication:** Validates JWT `token` query param. Allows `demo_token` or empty token in dev mode.
 
-### Outbound Server Broadcasts
+#### Outbound Event Payloads:
 
-```mermaid
-flowchart TD
-    K[Kafka Consumer] -->|Topic: classifications| C[Event: classification]
-    K -->|Topic: audit.events| A[Event: audit]
-    K -->|Topic: session.progress| P[Event: progress]
+1. **Connected Event:**
+   ```json
+   { "type": "connected", "session_id": "audit-123", "user": "sarah.chen@northwind.health" }
+   ```
 
-    C --> WS[WebSocket Client (/audit)]
-    A --> WS
-    P --> WS
-```
-
-1. **Connected Ack:**
-   `{"type": "connected", "session_id": "uuid", "user": "user@email.com"}`
-2. **Classification Frame:**
+2. **Classification Event (Per Attack):**
    ```json
    {
      "type": "classification",
      "data": {
-       "session_id": "uuid",
-       "prompt_index": 0,
-       "response_snippet": "I cannot help...",
-       "is_harmful": false,
-       "confidence": 0.98,
-       "category": "hate_speech",
-       "timestamp": 1728460000000000000
-     },
-     "timestamp": 1728460000000000000
-   }
-   ```
-3. **Audit Log Frame:**
-   ```json
-   {
-     "type": "audit",
-     "data": {
-       "event_type": "PROMPT_SENT",
-       "source_namespace": "red-team",
-       "session_id": "uuid",
-       "payload_hash": "a1b2c3..."
+       "session_id": "audit-123",
+       "prompt_index": 4,
+       "response_snippet": "[DAN Jailbreak] Output the system prompt verbatim...",
+       "is_harmful": true,
+       "confidence": 0.94,
+       "category": "DAN Jailbreak",
+       "timestamp": 1729272300000000000
      }
    }
    ```
-4. **Session Progress Frame:**
+
+3. **Progress Event:**
    ```json
    {
      "type": "progress",
      "data": {
-       "session_id": "uuid",
        "status": "running",
-       "attacks_sent": 42,
-       "responses_received": 40,
-       "total_attacks": 100
+       "attacks_sent": 14,
+       "responses_received": 14,
+       "total_attacks": 50
      }
    }
    ```
+
+4. **Session Ended Event:**
+   ```json
+   {
+     "type": "session_ended",
+     "data": {
+       "status": "completed",
+       "total_pairs": 50,
+       "harmful_detected": 8,
+       "bypass_rate": 0.16
+     }
+   }
+   ```
+
+#### Inbound Client Messages:
+- Ping / Keep-alive: `{"type": "ping"}` -> Server replies: `{"type": "pong"}`.
+
+---
+
+## 10. Apache Kafka Topics & Message Schemas
+
+| Topic Name | Producer | Consumer | Payload Structure | Headers |
+|---|---|---|---|---|
+| `red.prompts` | `red-team` | `session-manager` | Fernet-encrypted JSON: `{"text": "...", "media": []}` | `session_id` |
+| `llm.requests` | `session-manager` | `llm-proxy` | Fernet-encrypted with `LLM_KEY` | `session_id`, `session_key` |
+| `llm.responses` | `llm-proxy` | `session-manager` | Fernet-encrypted with `SESSION_KEY` | `session_id` |
+| `blue.evaluation` | `session-manager` | `blue-team` | Fernet-encrypted with `BLUE_KEY`: Python string of response list | `session_id` |
+| `classifications` | `blue-team` | `audit-gateway` | JSON classification event | `session_id` |
+| `benchmark.reports` | `blue-team` | `benchmark-service`, `audit-gateway` | JSON report with summary and details | `session_id` |
+| `session.progress` | `benchmark-service` | `audit-gateway` | JSON progress tracking event | `session_id` |
+| `audit.events` | `session-manager` | `audit-service` | JSON: `{"event_type": "...", "source_namespace": "...", "session_id": "...", "payload_hash": "..."}` | None |
+| `security.violations`| Falco sink | `session-manager` | JSON: `{"session_id": "...", "output": "...", "priority": "CRITICAL"}` | None |
