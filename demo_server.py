@@ -83,6 +83,23 @@ async def login(data: dict):
 async def signup(data: dict):
     return {"message": "User registered successfully"}
 
+DEMO_PROFILE = {
+    "fullName": "Sarah Chen",
+    "organization": "Northwind Health",
+    "role": "CISO",
+    "email": "sarah.chen@northwind.health",
+    "bio": "Chief Information Security Officer leading adversarial AI safety and automated LLM red-teaming audits."
+}
+
+@auth_app.get("/auth/profile")
+async def get_profile():
+    return DEMO_PROFILE
+
+@auth_app.put("/auth/profile")
+async def update_profile(data: dict):
+    DEMO_PROFILE.update(data)
+    return DEMO_PROFILE
+
 @auth_app.put("/config/settings")
 async def save_settings(data: dict):
     return {"status": "saved"}
@@ -278,6 +295,20 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
             stream_task.cancel()
 
 # ==========================================
+# GATEWAY (PORT 8010)
+# ==========================================
+gateway_app = make_app("Centinela Mock Gateway (8010)")
+gateway_app.mount("/api/auth", auth_app)
+gateway_app.mount("/api/config", auth_app)
+gateway_app.mount("/api/drills", bench_app)
+gateway_app.mount("/api/session", session_app)
+gateway_app.mount("/api", bench_app)
+
+@gateway_app.websocket("/ws/{session_id}")
+async def gateway_ws(websocket: WebSocket, session_id: str):
+    await websocket_handler(websocket, session_id)
+
+# ==========================================
 # LAUNCHER
 # ==========================================
 def start_server(app, port, name):
@@ -288,12 +319,14 @@ def main():
     print("  CENTINELA ZERO-DEPENDENCY DEMO SERVER")
     print("=" * 65)
     print("[*] Starting all mock services in a single process...")
+    print("  - Port 8010 -> Unified API & WebSocket Gateway")
     print("  - Port 8004 -> Auth & Config Service")
     print("  - Port 8006 -> Benchmark & Drill Runner")
     print("  - Port 8000 -> Session Manager & Cryptographic Verifier")
     print("  - Port 8011 -> Real-Time WebSocket Telemetry Gateway")
     print("=" * 65)
 
+    threading.Thread(target=start_server, args=(gateway_app, 8010, "Gateway"), daemon=True).start()
     threading.Thread(target=start_server, args=(auth_app, 8004, "Auth"), daemon=True).start()
     threading.Thread(target=start_server, args=(bench_app, 8006, "Benchmark"), daemon=True).start()
     threading.Thread(target=start_server, args=(session_app, 8000, "Session"), daemon=True).start()

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Shell } from "@/components/Shell";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { api, WS_URL } from "../lib/api";
+import { api, WS_URL, IS_DEMO_MODE } from "../lib/api";
 
 export const Route = createFileRoute("/audit")({
   head: () => ({
@@ -82,18 +82,19 @@ function LiveAudit() {
   const [chartData, setChartData] = useState({ passing: 0, failing: 0, critical: 0, high: 0 });
   const [riskData, setRiskData] = useState<Record<string, { count: number; harmful: number }>>({});
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const connectWs = useCallback(() => {
     if (!session_id) return;
     setWsStatus("connecting");
 
-    // Auth check commented out for demo / local recording
-    // const token = localStorage.getItem("token");
-    // if (!token) {
-    //   navigate({ to: "/login", search: { redirect: "/audit" } as any });
-    //   return;
-    // }
+    if (!IS_DEMO_MODE) {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        navigate({ to: "/login", search: { redirect: "/audit" } as any });
+        return;
+      }
+    }
     const token = localStorage.getItem("token") || "demo_token";
 
     const ws = new WebSocket(`${WS_URL}/ws/${session_id}?token=${token}`);

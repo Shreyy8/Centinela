@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Shell } from "@/components/Shell";
+import { api } from "../lib/api";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -29,11 +32,44 @@ const INITIAL: Profile = {
 };
 
 function ProfilePage() {
-  const [profile, setProfile] = useState<Profile>(INITIAL);
+  const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Profile>(INITIAL);
 
-  const initials = profile.fullName
+  const { data: profile = INITIAL } = useQuery<Profile>({
+    queryKey: ["userProfile"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/auth/profile");
+        return {
+          fullName: res.fullName || INITIAL.fullName,
+          organization: res.organization || INITIAL.organization,
+          role: res.role || INITIAL.role,
+          email: res.email || INITIAL.email,
+          bio: res.bio || INITIAL.bio,
+        };
+      } catch (err) {
+        console.warn("Could not fetch profile, using fallback:", err);
+        return INITIAL;
+      }
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (updated: Profile) => {
+      return await api.put("/auth/profile", updated);
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(["userProfile"], saved);
+      toast.success("Profile updated successfully");
+      setEditing(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to update profile");
+    },
+  });
+
+  const initials = (profile.fullName || "SC")
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -88,8 +124,7 @@ function ProfilePage() {
               className="mt-8 space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                setProfile(draft);
-                setEditing(false);
+                saveMutation.mutate(draft);
               }}
             >
               <FormField
@@ -125,9 +160,10 @@ function ProfilePage() {
               <div className="flex gap-3">
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-lg bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white text-sm font-medium"
+                  disabled={saveMutation.isPending}
+                  className="px-5 py-2.5 rounded-lg bg-[#3B82F6] hover:bg-[#3B82F6]/90 disabled:opacity-50 text-white text-sm font-medium"
                 >
-                  Save Changes
+                  {saveMutation.isPending ? "Saving..." : "Save Changes"}
                 </button>
                 <button
                   type="button"

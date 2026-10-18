@@ -63,7 +63,7 @@ def test_llm_proxy_bus_flow():
     session_key = Fernet.generate_key().decode()
     
     # Encrypt prompt with LLM_KEY (as session-manager would)
-    llm_fernet = Fernet(LLM_KEY.encode())
+    llm_fernet = Fernet(LLM_KEY if isinstance(LLM_KEY, bytes) else LLM_KEY.encode())
     prompt = b"Test prompt"
     encrypted_prompt = llm_fernet.encrypt(prompt)
     

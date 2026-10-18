@@ -1,7 +1,30 @@
-const AUTH_URL = "http://localhost:8004";
-const BENCHMARK_URL = "http://localhost:8006";
-const SESSION_URL = "http://localhost:8000";
-export const WS_URL = "ws://localhost:8011";
+export const GATEWAY_URL = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_GATEWAY_URL) || "http://localhost:8010";
+export const WS_URL = (typeof import.meta !== "undefined" && import.meta.env?.VITE_WS_URL) || GATEWAY_URL.replace(/^http/, "ws");
+export const IS_DEMO_MODE = typeof import.meta !== "undefined" && import.meta.env?.VITE_DEMO_MODE === "true";
+
+export function resolveUrl(endpoint: string, baseUrl?: string): string {
+  if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) {
+    return endpoint;
+  }
+  if (
+    baseUrl &&
+    baseUrl !== "http://localhost:8004" &&
+    baseUrl !== "http://localhost:8006" &&
+    baseUrl !== "http://localhost:8000" &&
+    baseUrl !== "http://localhost:8011" &&
+    baseUrl !== GATEWAY_URL
+  ) {
+    const base = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+    const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+    return `${base}${path}`;
+  }
+
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  if (path.startsWith("/api/")) {
+    return `${GATEWAY_URL}${path}`;
+  }
+  return `${GATEWAY_URL}/api${path}`;
+}
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem("token");
@@ -13,12 +36,13 @@ function authHeaders(): Record<string, string> {
 async function handleResponse(resp: Response) {
   if (!resp.ok) {
     if (resp.status === 401) {
-      // Auth redirect commented out for demo / local recording
-      // localStorage.removeItem("token");
-      // localStorage.removeItem("user_email");
-      // if (typeof window !== "undefined") {
-      //   window.location.href = "/login?redirect=" + encodeURIComponent(window.location.pathname);
-      // }
+      if (!IS_DEMO_MODE) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user_email");
+        if (typeof window !== "undefined") {
+          window.location.href = "/login?redirect=" + encodeURIComponent(window.location.pathname);
+        }
+      }
     }
     const errorData = await resp.json().catch(() => ({ detail: "Request failed" }));
     throw new Error(errorData.detail || `HTTP ${resp.status}`);
@@ -27,8 +51,9 @@ async function handleResponse(resp: Response) {
 }
 
 export const api = {
-  async post(endpoint: string, data: any, baseUrl: string = AUTH_URL) {
-    const response = await fetch(`${baseUrl}${endpoint}`, {
+  async post(endpoint: string, data: any, baseUrl?: string) {
+    const url = resolveUrl(endpoint, baseUrl);
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -39,8 +64,9 @@ export const api = {
     return handleResponse(response);
   },
 
-  async get(endpoint: string, baseUrl: string = AUTH_URL) {
-    const response = await fetch(`${baseUrl}${endpoint}`, {
+  async get(endpoint: string, baseUrl?: string) {
+    const url = resolveUrl(endpoint, baseUrl);
+    const response = await fetch(url, {
       method: "GET",
       headers: {
         ...authHeaders(),
@@ -49,8 +75,9 @@ export const api = {
     return handleResponse(response);
   },
 
-  async delete(endpoint: string, baseUrl: string = AUTH_URL) {
-    const response = await fetch(`${baseUrl}${endpoint}`, {
+  async delete(endpoint: string, baseUrl?: string) {
+    const url = resolveUrl(endpoint, baseUrl);
+    const response = await fetch(url, {
       method: "DELETE",
       headers: {
         ...authHeaders(),
@@ -59,8 +86,9 @@ export const api = {
     return handleResponse(response);
   },
 
-  async put(endpoint: string, data: any, baseUrl: string = AUTH_URL) {
-    const response = await fetch(`${baseUrl}${endpoint}`, {
+  async put(endpoint: string, data: any, baseUrl?: string) {
+    const url = resolveUrl(endpoint, baseUrl);
+    const response = await fetch(url, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",

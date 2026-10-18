@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useState, useEffect } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "../lib/api";
+import { downloadCertificate } from "../lib/pdf";
 
 export const Route = createFileRoute("/results")({
   head: () => ({
@@ -265,7 +266,21 @@ function Results() {
               </div>
             </div>
             <div className="p-4 flex items-center gap-4 bg-[#1e2025]">
-              <button className="flex-1 bg-[#adc6ff] text-[#002e6a] font-bold py-2 rounded flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+              <button
+                onClick={() =>
+                  downloadCertificate({
+                    sessionId: session_id,
+                    drillName: run?.drill_name,
+                    datasetName: run?.dataset_name,
+                    totalPairs: run?.total_pairs,
+                    harmfulDetected: run?.harmful_detected,
+                    bypassRate: run?.bypass_rate,
+                    attackSuccessRate: run?.bypass_rate,
+                    completedAt: run?.completed_at,
+                  })
+                }
+                className="flex-1 bg-[#adc6ff] text-[#002e6a] font-bold py-2 rounded flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+              >
                 <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
                 DOWNLOAD PDF
               </button>
