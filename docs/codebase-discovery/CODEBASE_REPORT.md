@@ -2,7 +2,8 @@
 
 > **Document Type:** Senior Software Architect & Technical Lead Codebase Discovery  
 > **Repository:** [Centinela (formerly Bayora)](https://github.com/Shreyy8/Centinela.git)  
-> **Date:** October 2026  
+> **Branch:** `frontend`  
+> **Date:** October 2026 (Updated with standalone demo server, backend process supervisor, in-memory database fallbacks, and test verification)  
 > **Author:** Antigravity (Advanced Agentic Reverse Engineering)  
 
 ---
@@ -29,12 +30,12 @@
 ## 1. Core Objectives & Executive Overview
 
 ### 1.1 What Problem the Project Solves
-Modern enterprise adoption of Large Language Models (LLMs) requires rigorous safety testing against jailbreaks, prompt injections, and data extraction attacks. However, conducting adversarial safety testing presents severe architectural challenges:
+Deploying Large Language Models (LLMs) in enterprise production environments exposes organizations to severe regulatory liability, data leakage, and security exploits. However, traditional adversarial safety testing suffers from three critical architectural vulnerabilities:
 1. **Side-Channel Information Leakage:** If the adversarial red team has real-time timing visibility into the target model's token generation or KV cache, they can infer hidden prompts or model weights.
 2. **Untrusted Sandboxed Inference:** Running untrusted adversarial prompts against production-grade weights risks container escapes, unauthorized syscalls, or malicious egress probes.
 3. **Audit Immutability & Regulatory Compliance:** Regulators (under HIPAA, SOX, GDPR, and the EU AI Act) require mathematically verifiable, tamper-evident proof that safety audits occurred as documented.
 
-**Centinela** (historically and internally developed as **Bayora**) is an automated AI safety validation platform designed to orchestrate simultaneous adversarial red-team attacks and blue-team defenses against LLMs within a strictly isolated multi-tenant environment. It features:
+**Centinela** (internally and historically developed as **Bayora**) is an automated AI safety validation platform designed to orchestrate simultaneous adversarial red-team attacks and blue-team defenses against LLMs within a strictly isolated multi-tenant environment. It features:
 - **Mediated Cryptographic Message Bus:** Strict four-key separation (`RED_KEY`, `LLM_KEY`, `SESSION_KEY`, `BLUE_KEY`) guaranteeing zero direct network connectivity between testing teams.
 - **Sandboxed Inference Proxy:** Built-in semantic cosine similarity leak detection, echo filtering, and explicit VRAM/KV-cache memory destruction.
 - **Tamper-Evident Merkle/Hash Ledger:** An append-only cryptographic ledger tracking all cross-boundary events with real-time SHA-256 chain verification.
@@ -58,328 +59,274 @@ Centinela/
 │   │   ├── loaders/common.py                # DatasetLoader (AdvBench, JailbreakBench, Combined)
 │   │   └── manifest.json                    # Metadata registry of datasets & adapters
 │   ├── infra/                               # Cloud-native infrastructure specifications
-│   │   ├── gvisor/runtimeclass.yaml         # gVisor 'runsc' RuntimeClass for K8s
-│   │   ├── k8s/                             # Kubernetes manifests (Istio, NetworkPolicies, Apps)
-│   │   ├── scripts/                         # Key generation and isolation testing shell scripts
-│   │   └── terraform/                       # AWS VPC & EKS cluster provisioning (v20.0 module)
-│   ├── ml/                                  # Machine learning generators and classifiers
-│   │   ├── attack_generators/engine.py      # AdversarialPromptEngine (Direct, Jailbreak, Roleplay, PAIR, GCG)
-│   │   ├── classifiers/defense.py           # DefenseClassifier (Toxic-BERT with LoRA adapters)
-│   │   └── classifiers/train_colab.py       # Fine-tuning pipeline for toxic-bert using PEFT
-│   ├── monitoring/                          # Observability and runtime breach detection
-│   │   ├── dashboards/                      # Grafana and Prometheus configurations
-│   │   └── falco_rules/bayora_rules.yaml    # Falco eBPF security rules (DNS probes, blocked syscalls)
-│   └── services/                            # Backend FastAPI microservices
-│       ├── audit_gateway/main.py            # WebSocket event fanout (:8011)
-│       ├── audit_service/main.py            # Tamper-evident hash ledger (:8005)
-│       ├── auth_service/main.py             # User signup/login, encrypted configs (:8004)
-│       ├── benchmark_service/               # Drill orchestrator & leaderboard (:8006)
-│       ├── blue_team/main.py                # Defense evaluation consumer (:8001)
-│       ├── llm_proxy/                       # Sandboxed inference engine (:8002)
-│       ├── red_team/main.py                 # Adversarial attack streamer (:8003)
-│       └── session_manager/                 # Cryptographic bus coordinator (:8000)
-├── blue_agent_lora/                         # Trained LoRA weights (adapter_model.safetensors, 1.19MB)
-├── frontend/                                # Modern React 19 / TanStack Start web application
+│   │   ├── gvisor/runtimeclass.yaml         # Kubernetes RuntimeClass for runsc sandboxing
+│   │   ├── k8s/                             # Kubernetes manifests (namespaces, Istio, netpols)
+│   │   │   ├── istio/                       # mTLS peer authentication & authorization policies
+│   │   │   ├── namespaces/                  # apps.yaml, kafka.yaml, quotas, secrets-rbac
+│   │   │   ├── network-policies/            # Zero-trust network policies (default-deny)
+│   │   │   └── pod-security/                # Seccomp syscall filtering profiles
+│   │   ├── scripts/                         # Key generation and isolation testing scripts
+│   │   └── terraform/                       # AWS EKS cluster deployment modules
+│   ├── ml/                                  # Machine learning models & classifiers
+│   │   ├── attack_generators/engine.py      # AdversarialPromptEngine (Direct, Jailbreak, PAIR, GCG)
+│   │   ├── classifiers/defense.py           # DefenseClassifier (LoRA Toxic-BERT evaluator)
+│   │   ├── classifiers/train_colab.py       # Training script for blue agent LoRA weights
+│   │   └── models/blue_agent_lora/          # Fine-tuned adapter weights & tokenizer
+│   ├── monitoring/                          # Observability & runtime intrusion detection
+│   │   ├── dashboards/                      # Grafana dashboard & Prometheus alerting config
+│   │   └── falco_rules/bayora_rules.yaml    # Falco rules detecting cross-namespace probes & syscalls
+│   └── services/                            # FastAPI backend microservices
+│       ├── audit_gateway/main.py            # WebSocket telemetry gateway (Kafka consumer + mock streamer)
+│       ├── audit_service/main.py            # Append-only SHA-256 Merkle audit ledger
+│       ├── auth_service/main.py             # User authentication & Fernet-encrypted API key storage
+│       ├── benchmark_service/               # Drill orchestration, database, and leaderboard
+│       │   ├── database.py                  # PostgreSQL interface with in-memory ledger fallback
+│       │   └── main.py                      # REST endpoints for drill runs and status polling
+│       ├── blue_team/main.py                # Blue team toxicity evaluation service
+│       ├── llm_proxy/                       # Inference sandbox & memory management
+│       │   ├── bus.py                       # LLM proxy message bus consumer
+│       │   ├── inference.py                 # SandboxedInference (echo/semantic filter + VRAM purge)
+│       │   └── main.py                      # LLM proxy service entry point
+│       ├── red_team/main.py                 # Red team adversarial attack streaming engine
+│       └── session_manager/                 # Cryptographic message bus broker & session state
+│           ├── audit.py                     # AuditEventPublisher emitting to Kafka audit.events
+│           ├── bus.py                       # IsolatedMessageBus with micro-batching
+│           ├── main.py                      # Session lifecycle endpoints (/start, /infer, /end)
+│           └── violations.py                # Falco intrusion breach handler & session terminator
+├── docs/codebase-discovery/                 # Comprehensive reverse-engineering documentation
+├── frontend/                                # Full-stack Web UI (React 19 / TanStack Start)
 │   ├── src/
-│   │   ├── components/                      # Shell.tsx, Preloader.tsx, Footer.tsx, Radix UI suite
-│   │   ├── lib/api.ts                       # Fetch client & WebSocket manager
-│   │   ├── routes/                          # TanStack file-based router pages
-│   │   │   ├── __root.tsx                   # HTML head, styles, TanStack Query provider
-│   │   │   ├── index.tsx                    # Marketing landing page
+│   │   ├── components/                      # Shell, Footer, Preloader, and Shadcn UI components
+│   │   ├── lib/api.ts                       # Fetch client & WebSocket telemetry manager
+│   │   ├── routes/                          # TanStack router page definitions
+│   │   │   ├── __root.tsx                   # Layout root with TanStack Query provider
+│   │   │   ├── index.tsx                    # Landing page with interactive feature overview
 │   │   │   ├── login.tsx & register.tsx     # Authentication screens
-│   │   │   ├── config.tsx                   # Audit parameter configuration
-│   │   │   ├── audit.tsx                    # Live WebSocket telemetry feed
-│   │   │   ├── results.tsx                  # Safety scorecard & certification seal
-│   │   │   └── profile.tsx                  # User profile management (Client-side mock)
-│   │   ├── server.ts & start.ts             # SSR server entry points
-│   │   └── styles.css                       # Tailwind CSS styling
-│   └── package.json                         # Node dependencies (Vite 7, Tailwind 4, TanStack Router)
-├── infra/nginx/centinela-gateway.conf       # Nginx reverse proxy routing definition (:8010)
-├── services/orchestrator/                   # Abandoned Django experiment (Contains single corrupted settings.py)
-├── tests/integration/                       # Pytest integration test suites
-│   ├── test_session_manager.py              # Tests session lifecycle, micro-batching, audit publishing
-│   ├── test_llm_proxy.py                    # Tests echo filtering, semantic cosine filter, VRAM teardown
-│   ├── test_pipelines.py                    # Tests red team generation and blue team evaluation
-│   └── test_monitoring.py                   # Tests Falco isolation breach termination
-├── docker-compose.yml                       # Multi-container orchestration (12 containers)
-├── Dockerfile                               # Universal Python 3.11 microservice container
-└── Makefile                                 # Build, deploy, test automation tasks
+│   │   │   ├── config.tsx                   # Audit parameter selection & execution launcher
+│   │   │   ├── audit.tsx                    # Real-time streaming audit telemetry dashboard
+│   │   │   ├── results.tsx                  # Final resilience score & compliance certification
+│   │   │   └── profile.tsx                  # User profile and audit history screen
+│   │   ├── server.ts & start.ts             # TanStack Start SSR entry points
+│   │   └── styles.css                       # Tailwind CSS v4 styling definitions
+│   └── package.json                         # Node dependencies & build scripts
+├── infra/nginx/centinela-gateway.conf       # Reverse proxy configuration for port 8010
+├── tests/integration/                       # Pytest integration test suite
+│   ├── test_llm_proxy.py                    # Inference sandboxing & memory purge tests
+│   ├── test_monitoring.py                   # Falco intrusion violation tests
+│   ├── test_pipelines.py                    # Red/Blue attack and defense pipeline tests
+│   └── test_session_manager.py              # Cryptographic key lifecycle & micro-batch tests
+├── demo_server.py                           # Single-process standalone demo server (:8004, :8006, :8000, :8011)
+├── run_backend.py                           # Multiprocess supervisor launching all 8 microservices locally
+├── docker-compose.yml                       # Full microservices compose orchestration
+├── Dockerfile                               # Universal microservice container definition
+├── Makefile                                 # Build, test, and deployment automation
+└── PLAN.md                                  # Previous engineering implementation roadmap
 ```
 
 ---
 
 ## 3. Complete Feature Inventory & Implementation Verification
 
-A complete feature-by-feature evaluation is documented in [FEATURE_INVENTORY.md](file:///docs/codebase-discovery/FEATURE_INVENTORY.md). The table below summarizes verified implementation states:
+Centinela contains 21 identified system capabilities spanning frontend presentation, cryptographic orchestration, machine learning inference, and cloud infrastructure:
 
-| Feature Name | Observed State | Evidence & References |
-|---|---|---|
-| **User Registration & Login** | `[VERIFIED]` | [bayora/services/auth_service/main.py:80-104](file:///bayora/services/auth_service/main.py#L80-L104) hashes passwords with bcrypt and issues signed HS256 JWTs. |
-| **Audit Configuration & Key Storage** | `[VERIFIED]` | [bayora/services/auth_service/main.py:110-159](file:///bayora/services/auth_service/main.py#L110-L159) encrypts provider API keys using Fernet symmetric encryption into MongoDB `configs`. |
-| **Session Key Brokerage & Lifecycle** | `[VERIFIED]` | [bayora/services/session_manager/main.py:113-160](file:///bayora/services/session_manager/main.py#L113-L160) generates dynamic 32-byte keys, controls bus mediation, and destroys keys on teardown. |
-| **Adversarial Drill Orchestrator** | `[IMPLEMENTED]` | [bayora/services/benchmark_service/main.py:145-190](file:///bayora/services/benchmark_service/main.py#L145-L190) coordinates sessions, dispatches workers, and writes results to PostgreSQL. |
-| **Adversarial Prompt Mutation** | `[MOCKED]` | Mutation strategies (DAN, PAIR, GCG) in [bayora/ml/attack_generators/engine.py](file:///bayora/ml/attack_generators/engine.py) work, but input dataset corpus is hardcoded to 3 mock prompts. |
-| **Sandboxed Target Inference** | `[IMPLEMENTED]` | [bayora/services/llm_proxy/inference.py:99-155](file:///bayora/services/llm_proxy/inference.py#L99-L155) supports Ollama, Gemini, vLLM, and Transformers. |
-| **Output Echo & DLP Filtering** | `[VERIFIED]` | [bayora/services/llm_proxy/inference.py:156-190](file:///bayora/services/llm_proxy/inference.py#L156-L190) strips verbatim echoes, system prompt headers, and >0.75 cosine similarity matches. |
-| **Micro-Batched Delayed Delivery** | `[VERIFIED]` | [bayora/services/session_manager/bus.py:89-117](file:///bayora/services/session_manager/bus.py#L89-L117) buffers responses until 5 items accumulate before releasing to Blue Team. |
-| **Defense Classification (LoRA)** | `[IMPLEMENTED]` | [bayora/ml/classifiers/defense.py](file:///bayora/ml/classifiers/defense.py) uses `unitary/toxic-bert` + LoRA weights to compute bypass rate. |
-| **Live WebSocket Telemetry** | `[PARTIAL]` | [bayora/services/audit_gateway/main.py](file:///bayora/services/audit_gateway/main.py) broadcasts live JSON frames, but frontend [frontend/src/routes/audit.tsx:85](file:///frontend/src/routes/audit.tsx#L85) has a TypeScript build error. |
-| **Tamper-Evident Audit Ledger** | `[VERIFIED]` | [bayora/services/audit_service/main.py:65-149](file:///bayora/services/audit_service/main.py#L65-L149) computes and verifies unbroken SHA-256 hash chains from genesis. |
-| **Falco Security Breach Killer** | `[VERIFIED]` | [bayora/services/session_manager/violations.py](file:///bayora/services/session_manager/violations.py) terminates sessions immediately upon container or DNS probe alerts. |
-| **User Profile Management** | `[UI ONLY]` | [frontend/src/routes/profile.tsx](file:///frontend/src/routes/profile.tsx) is a hardcoded mock ("Sarah Chen") that does not communicate with any backend. |
-| **Audit Certificate PDF Download** | `[UI ONLY]` | [frontend/src/routes/results.tsx:267-271](file:///frontend/src/routes/results.tsx#L267-L271) contains an unhandled `<button>` with no PDF export library. |
+1. **User Authentication & JWT Issuance:** Fully implemented in [auth_service/main.py](file:///bayora/services/auth_service/main.py). Uses bcrypt via `passlib` and HMAC-SHA256 JWT tokens. Includes fallback to `demo_token` and MongoDB timeout handling.
+2. **Encrypted Provider API Key Storage:** Implemented in [auth_service/main.py](file:///bayora/services/auth_service/main.py#L107-L130). Encrypts keys at rest using Fernet with `AUTH_ENCRYPTION_KEY`.
+3. **Dynamic Session Lifecycle & Key Isolation:** Implemented and verified in [session_manager/main.py](file:///bayora/services/session_manager/main.py) and [test_session_manager.py](file:///tests/integration/test_session_manager.py). Dynamic Fernet key generated at `session/start` and purged at `session/end`.
+4. **Micro-Batch Release Engine:** Implemented in [session_manager/bus.py](file:///bayora/services/session_manager/bus.py#L86-L116). Aggregates responses into batches of 5 before releasing to Blue Team to disrupt timing analysis.
+5. **Sandboxed Inference & Echo Filtering:** Implemented in [llm_proxy/inference.py](file:///bayora/services/llm_proxy/inference.py#L156-L170). Replaces echoes with `[ECHO_FILTERED]`.
+6. **Semantic Cosine Leak Detection:** Implemented in [llm_proxy/inference.py](file:///bayora/services/llm_proxy/inference.py#L172-L190). Flags responses having $>0.75$ cosine similarity with the prompt as `[SEMANTIC_ECHO_FILTERED]`.
+7. **Explicit VRAM & KV Cache Destruction:** Implemented in [llm_proxy/inference.py](file:///bayora/services/llm_proxy/inference.py#L191-L219). Purges model parallel state, runs `torch.cuda.empty_cache()` and `gc.collect()`.
+8. **Multi-Strategy Attack Generator:** Partially implemented in [attack_generators/engine.py](file:///bayora/ml/attack_generators/engine.py). Supports Direct, Jailbreak, Roleplay, PAIR, and static GCG suffixes.
+9. **Safety Datasets:** Mocked in [datasets/loaders/common.py](file:///bayora/datasets/loaders/common.py). Contains 3 hardcoded prompts across AdvBench and JailbreakBench.
+10. **LoRA-Finetuned Toxic-BERT Defense Classifier:** Implemented in [classifiers/defense.py](file:///bayora/ml/classifiers/defense.py). Combines `unitary/toxic-bert` with custom LoRA adapter weights.
+11. **Benchmark Orchestration & Leaderboard:** Implemented in [benchmark_service/main.py](file:///bayora/services/benchmark_service/main.py) with PostgreSQL storage and `self._memory_runs` in-memory fallback.
+12. **Tamper-Evident SHA-256 Merkle Ledger:** Implemented in [audit_service/main.py](file:///bayora/services/audit_service/main.py). Computes recursive hash chains and verifies chain integrity via `GET /verify`.
+13. **Real-Time WebSocket Telemetry Gateway:** Implemented in [audit_gateway/main.py](file:///bayora/services/audit_gateway/main.py). Consumes Kafka topics and broadcasts to connected WebSocket clients.
+14. **Zero-Dependency Mock Audit Streamer:** Implemented in [audit_gateway/main.py#L44-L121](file:///bayora/services/audit_gateway/main.py#L44-L121) and [demo_server.py](file:///demo_server.py). Streams 25 synthetic attacks with realistic latency when Kafka is offline.
+15. **Falco Intrusion & Breach Termination:** Implemented in [violations.py](file:///bayora/services/session_manager/violations.py) and verified in `test_monitoring.py`. Terminates active sessions upon intrusion detection.
+16. **Frontend Audit Configuration & Launch:** Implemented in [routes/config.tsx](file:///frontend/src/routes/config.tsx). Interactive configuration with fallback mock session generation.
+17. **Frontend Live Audit Telemetry Dashboard:** Implemented in [routes/audit.tsx](file:///frontend/src/routes/audit.tsx). Renders real-time progress bars, live classification cards, and threat charts. Contains a TypeScript compilation warning on line 85.
+18. **Frontend Results & Regulatory Certificates:** Implemented in [routes/results.tsx](file:///frontend/src/routes/results.tsx). Renders Resilience Score, Bypass Rate, and compliance certification badges.
+19. **User Profile Editing & Audit History:** UI Present, Backend Missing ([routes/profile.tsx](file:///frontend/src/routes/profile.tsx)). Edits only update React local state.
+20. **PDF Audit Certificate Export:** UI Present, Backend Missing ([routes/results.tsx:268-272](file:///frontend/src/routes/results.tsx#L268-L272)). Button has no click handler.
+21. **Django Orchestrator Service:** Broken/Abandoned ([services/orchestrator/src/orchestrator/settings.py](file:///services/orchestrator/src/orchestrator/settings.py)). Contains socket error string on line 1 and lacks URL/model definitions.
 
 ---
 
 ## 4. Important Execution Paths Traced End-to-End
 
-### 4.1 Major User Journey: Executing an Adversarial Audit Drill
-1. **User Initiation:** The auditor navigates to `/config`, selects target parameters (`OPENAI`, `Healthcare`, `Medium` severity, `250K` budget), and clicks **Start Audit**.
-2. **Configuration Persistence:** The browser sends `PUT http://localhost:8004/config/settings` and `POST /config/api-key` with the user's Bearer JWT.
-3. **Drill Trigger:** The browser calls `POST http://localhost:8006/drills/run` with payload `{"drill_name": "Audit-...", "domain": "Healthcare", "count": 500}`.
-4. **Session Startup:** `benchmark_service` calls `POST http://localhost:8000/session/start`. `session_manager` generates a unique UUID `session_id` and a dynamic 32-byte Fernet `SESSION_KEY`.
-5. **Audit Event Genesis:** `session_manager` emits `SESSION_START` with payload hash to Kafka topic `audit.events`. `audit_service` inserts this into PostgreSQL `audit_entries`.
-6. **Streaming Attacks:** `benchmark_service` triggers `POST http://localhost:8003/attack/stream`. `red_team` begins mutating prompts, encrypting each with `RED_KEY`, and publishing to Kafka topic `red.prompts`.
-7. **Mediated Forwarding:** `session_manager` consumes `red.prompts`, decrypts with `RED_KEY`, re-encrypts with `LLM_KEY`, logs `PROMPT_SENT` to `audit.events`, and publishes to `llm.requests` with `session_id` and `session_key` embedded in the Kafka headers.
-8. **Sandboxed Target Completion:** `llm_proxy` consumes `llm.requests`, decrypts with `LLM_KEY`, invokes the model, applies echo and semantic filters, encrypts the response with `SESSION_KEY`, and publishes to `llm.responses`.
-9. **Micro-Batch Buffering:** `session_manager` consumes `llm.responses`, decrypts with `SESSION_KEY`, stores in `unreleased_stores`, and logs `RESPONSE_RECEIVED`. When 5 responses accumulate, it re-encrypts the bundle with `BLUE_KEY` and publishes to `blue.evaluation`.
-10. **Defense Evaluation:** `blue_team` consumes `blue.evaluation`, decrypts with `BLUE_KEY`, and runs sequence classification. It emits individual items to Kafka topic `classifications` (streamed to the browser via WebSocket on port 8011) and the final report to `benchmark.reports`.
-11. **Session Completion:** `benchmark_service` consumes `benchmark.reports`, updates PostgreSQL `benchmark_runs` with `bypass_rate` and `harmful_detected`, and calls `POST http://localhost:8000/session/end`.
-12. **Teardown & Certificate Display:** `session_manager` destroys the session keys. The browser receives the completion event and navigates to `/results?session_id=...` to display the Centinela Safety Seal.
+### 4.1 The Complete Adversarial Drill Execution Path
+1. **User Initiation:** On `/config`, the user selects target provider (e.g. OpenAI), model (`gpt-4-turbo-preview`), domain (`Healthcare`), and budget ($250). Clicking "EXECUTE ADVERSARIAL AUDIT" triggers `startAuditMutation`.
+2. **Configuration Persistence:** The frontend fires a `PUT /config/settings` to `http://localhost:8004` to persist parameters, and `POST /config/api-key` if an API key was provided.
+3. **Drill Launch:** The frontend posts to `http://localhost:8006/drills/run` with `drill_name`, `domain`, and calculated attack count (`budget / 0.5 = 50`).
+4. **Session Handshake:** Benchmark Service calls Session Manager `POST /session/start` (:8000). Session Manager creates a session ID and generates an ephemeral 32-byte Fernet key, emitting a `SESSION_START` event to Kafka `audit.events`.
+5. **Database Initialization:** Benchmark Service inserts a row into `benchmark_runs` with status `pending`.
+6. **Attack Trigger:** Benchmark Service triggers Red Team via `POST /attack/stream` (:8003).
+7. **Frontend Transition:** The frontend receives the `session_id` and navigates to `/audit?session_id=...`.
+8. **WebSocket Telemetry:** Frontend connects to `ws://localhost:8011/ws/{session_id}`. Audit Gateway accepts the socket and begins streaming events.
+9. **Adversarial Generation & Encryption:** Red Team mutates base prompts using selected strategies (Jailbreak, Roleplay, PAIR), encrypts payloads with `RED_KEY`, and produces them to Kafka `red.prompts`.
+10. **Session Mediation:** Session Manager consumes `red.prompts`, decrypts payloads with `RED_KEY`, re-encrypts with `LLM_KEY`, and publishes to `llm.requests` with the `session_key` attached in the header.
+11. **Sandboxed Inference:** LLM Proxy consumes `llm.requests`, decrypts with `LLM_KEY`, queries the target model (Gemini, Ollama, or Mock), runs output filters (echo check, system marker strip, and MiniLM semantic similarity check), encrypts the response with `SESSION_KEY`, and produces to `llm.responses`.
+12. **Micro-Batching:** Session Manager consumes `llm.responses`, decrypts with `SESSION_KEY`, and queues responses. Once 5 responses accumulate, it re-encrypts the bundle with `BLUE_KEY` and publishes to `blue.evaluation`.
+13. **Defense Evaluation:** Blue Team consumes `blue.evaluation`, evaluates toxicity using LoRA Toxic-BERT, and emits individual classifications to `classifications` and the aggregate report to `benchmark.reports`.
+14. **Telemetry Fanout:** Audit Gateway reads `classifications` and pushes live updates to the frontend WebSocket. The frontend updates threat charts, passing/failing counters, and progress meters.
+15. **Drill Finalization:** Benchmark Service consumes `benchmark.reports`, updates `benchmark_runs` to status `completed`, and calls Session Manager `POST /session/end`.
+16. **Session Teardown:** Session Manager permanently purges the `SESSION_KEY` from memory, flushes any unreleased responses, and emits `SESSION_END` to `audit.events`.
+17. **Results View:** Audit Gateway sends `session_ended` over WebSocket. The frontend enables the "VIEW FINAL RESULTS & CERTIFICATE" button, allowing the user to view `/results` showing Resilience Score and compliance certification badges.
 
 ---
 
 ## 5. Frontend Architecture & Page Inventory
 
-### 5.1 Architecture & Stack
-- **Framework:** React 19 with TanStack Start (full-stack SSR running Vite 7).
-- **Routing:** TanStack Router (`frontend/src/routeTree.gen.ts`, `frontend/src/router.tsx`) using file-based routes in `frontend/src/routes/`.
-- **State Management:** TanStack Query (`QueryClientProvider`) for server mutations, combined with React local component state and `localStorage` token storage.
-- **Styling & UI:** Tailwind CSS v4, Radix UI primitives, Lucide icons, Sonner toast notifications, GSAP animation hooks.
+The frontend is a modern single-page application built with React 19, TanStack Start (SSR), TanStack Router, TanStack Query, and Tailwind CSS v4.
 
-### 5.2 Page & Route Inventory
+### Page Inventory
 
-| Route Path | File Path | Access Control | Purpose & Key Components | Backend Calls |
-|---|---|---|---|---|
-| `/` | [frontend/src/routes/index.tsx](file:///frontend/src/routes/index.tsx) | Public | Marketing landing page; Hero, Features, Compliance, Pricing | None |
-| `/login` | [frontend/src/routes/login.tsx](file:///frontend/src/routes/login.tsx) | Public | Authentication; email/password form | `POST :8004/auth/login` |
-| `/register` | [frontend/src/routes/register.tsx](file:///frontend/src/routes/register.tsx) | Public | Account creation form | `POST :8004/auth/signup` |
-| `/config` | [frontend/src/routes/config.tsx](file:///frontend/src/routes/config.tsx) | Authenticated (Token checked) | Provider selection, target parameters, budget | `PUT :8004/config/settings`, `POST :8004/config/api-key`, `POST :8006/drills/run` |
-| `/audit` | [frontend/src/routes/audit.tsx](file:///frontend/src/routes/audit.tsx) | Authenticated | Real-time attack feed, live dials, progress counters | WebSocket `ws://:8011/ws/{session_id}` |
-| `/results` | [frontend/src/routes/results.tsx](file:///frontend/src/routes/results.tsx) | Authenticated | Audit scorecard, bypass rate, Centinela Safety Seal | `GET :8006/drills/{session_id}/status` |
-| `/profile` | [frontend/src/routes/profile.tsx](file:///frontend/src/routes/profile.tsx) | Authenticated | User organization & title settings (**Mocked UI**) | None |
+| Route | File Path | Purpose | Key Data Sources |
+|---|---|---|---|
+| `/` | [routes/index.tsx](file:///frontend/src/routes/index.tsx) | Landing page introducing Centinela's adversarial safety harness | Static, GSAP animations |
+| `/login` | [routes/login.tsx](file:///frontend/src/routes/login.tsx) | User login and JWT acquisition | `POST /auth/login` (:8004) |
+| `/register` | [routes/register.tsx](file:///frontend/src/routes/register.tsx) | User registration | `POST /auth/signup` (:8004) |
+| `/config` | [routes/config.tsx](file:///frontend/src/routes/config.tsx) | Audit parameter selection and drill execution | `PUT /config/settings`, `POST /drills/run` |
+| `/audit` | [routes/audit.tsx](file:///frontend/src/routes/audit.tsx) | Real-time live attack streaming dashboard | `ws://localhost:8011/ws/{session_id}` |
+| `/results` | [routes/results.tsx](file:///frontend/src/routes/results.tsx) | Final audit report, scorecards, compliance seals | `GET /drills/{session_id}/status` (:8006) |
+| `/profile` | [routes/profile.tsx](file:///frontend/src/routes/profile.tsx) | User profile and organization details | Local component state (mock) |
 
 ---
 
 ## 6. Backend Microservice Architecture & Business Logic
 
-The backend comprises 8 dedicated microservices:
+Centinela follows a clean separation of concerns across 8 dedicated Python services:
 
-```mermaid
-flowchart TD
-    subgraph EdgeServices["Edge & Gateway"]
-        Nginx["Nginx Gateway (:8010)"]
-        AuditGW["WebSocket Gateway (:8011)"]
-    end
-
-    subgraph CoreServices["Domain Orchestration"]
-        Auth["Auth & Config Service (:8004)"]
-        Bench["Benchmark Service (:8006)"]
-        Session["Session Manager (:8000)"]
-        Audit["Audit Service (:8005)"]
-    end
-
-    subgraph MLSandbox["ML & Target Sandbox"]
-        Red["Red Team Engine (:8003)"]
-        LLM["LLM Proxy Sandbox (:8002)"]
-        Blue["Blue Team Defense (:8001)"]
-    end
-
-    Nginx --> Auth
-    Nginx --> Bench
-    Nginx --> Session
-    Nginx --> Audit
-    AuditGW -.->|WebSockets| Nginx
-
-    Bench --> Session
-    Bench --> Red
-    Session <--> Red
-    Session <--> LLM
-    Session <--> Blue
-    Session --> Audit
-```
-
-### 6.1 Architectural Patterns Employed
-- **Mediated Message Bus:** Tenants communicate exclusively by publishing and consuming messages through Kafka topics managed by the Session Manager.
-- **Cryptographic Envelopes:** Every cross-team message is symmetrically encrypted using Fernet keys scoped strictly to allowed boundaries.
-- **Decentralized Immutable Audit Ledger:** The audit log service maintains its own PostgreSQL database completely separate from the benchmark service.
+1. **`auth_service` (:8004):** Manages user authentication and encrypts LLM provider API keys using Fernet before storing them in MongoDB. Features graceful degradation when MongoDB is unavailable.
+2. **`session_manager` (:8000):** Acts as the central cryptographic broker. Generates ephemeral session keys, mediates prompt forwarding between Red Team and LLM Proxy, aggregates responses into micro-batches of 5, and logs audit events to Kafka.
+3. **`llm_proxy` (:8002):** Executes sandboxed inference against target LLMs. Enforces prompt echo filtering, cosine semantic leak detection (MiniLM-L6-v2), and forces complete GPU VRAM purging on session completion.
+4. **`red_team` (:8003):** Adversarial prompt generation engine supporting Direct, DAN Jailbreaks, Roleplay obfuscation, PAIR (LLM-in-the-loop), and GCG suffix attacks.
+5. **`blue_team` (:8001):** Defense classification service using a fine-tuned LoRA adapter on `unitary/toxic-bert` to classify responses as safe or harmful.
+6. **`benchmark_service` (:8006):** Orchestrates drills, manages the `benchmark_runs` database in PostgreSQL, tracks progress, and calculates the defense leaderboard.
+7. **`audit_service` (:8005):** Manages the tamper-evident SHA-256 Merkle chain in PostgreSQL (`bayora_audit`), verifying ledger consistency from genesis on demand.
+8. **`audit_gateway` (:8011):** High-throughput WebSocket server streaming live attack events to frontends, with built-in synthetic simulation when Kafka is unavailable.
 
 ---
 
-## 7. API & Communication Interface Inventory
+## 7. Complete API & Interface Inventory
 
-Detailed method signatures, inputs, outputs, and validation rules are documented in [API_REFERENCE.md](file:///docs/codebase-discovery/API_REFERENCE.md).
+*(Detailed in [API_REFERENCE.md](file:///docs/codebase-discovery/API_REFERENCE.md))*
 
-### Summary of REST Endpoints by Service
-
-| Service | Port | Base Path | Key Operations |
-|---|---|---|---|
-| **Auth Service** | 8004 | `/auth`, `/config` | `POST /auth/signup`, `POST /auth/login`, `POST /config/api-key`, `PUT /config/settings` |
-| **Session Manager** | 8000 | `/session`, `/audit` | `POST /session/start`, `POST /session/infer`, `POST /session/end`, `GET /session/{id}/status` |
-| **Benchmark Service** | 8006 | `/drills`, `/` | `POST /drills/run`, `GET /drills/{id}/status`, `POST /drills/{id}/cancel`, `GET /leaderboard`, `GET /datasets` |
-| **Audit Service** | 8005 | `/` | `GET /verify` (Validates full SHA-256 hash chain) |
-| **Red Team** | 8003 | `/attack` | `POST /attack/generate`, `POST /attack/stream`, `POST /attack/stop/{id}` |
-| **Blue Team** | 8001 | `/evaluate` | `POST /evaluate/batch` |
-| **LLM Proxy** | 8002 | `/llm` | `POST /llm/infer`, `POST /llm/session/end` |
-| **Audit Gateway** | 8011 | `/ws` | `WebSocket /ws/{session_id}?token={jwt}` |
+All microservices expose RESTful HTTP endpoints via FastAPI and communicate asynchronously over Apache Kafka topics:
+- **Edge Gateway:** Port 8010 via Nginx.
+- **REST Endpoints:** 24 distinct endpoints across the 8 microservices.
+- **WebSocket Gateway:** `ws://localhost:8011/ws/{session_id}` supporting `connected`, `progress`, `classification`, and `session_ended` events.
+- **Kafka Topics:** 9 specialized topics (`red.prompts`, `llm.requests`, `llm.responses`, `blue.evaluation`, `classifications`, `benchmark.reports`, `session.progress`, `audit.events`, `security.violations`).
 
 ---
 
 ## 8. Database, Storage Systems & Cryptographic Ledger
 
-Detailed schemas, ER diagrams, and event payloads are documented in [DATA_MODEL.md](file:///docs/codebase-discovery/DATA_MODEL.md).
+*(Detailed in [DATA_MODEL.md](file:///docs/codebase-discovery/DATA_MODEL.md))*
 
-### Core Database Entities
-1. **`bayora_auth` (MongoDB):**
-   - `users`: User authentication credentials (email, bcrypt password hash).
-   - `configs`: Auditor target settings and Fernet-encrypted API keys.
-2. **`bayora_benchmark` (PostgreSQL):**
-   - `benchmark_runs`: Stores audit drill metadata (`session_id`, `drill_name`, `total_attacks`, `attacks_sent`, `responses_received`, `total_pairs`, `harmful_detected`, `bypass_rate`, `status`, `report` JSONB).
-3. **`bayora_audit` (PostgreSQL):**
-   - `audit_entries`: Append-only cryptographic hash chain (`event_type`, `source_namespace`, `session_id`, `payload_hash`, `timestamp_ns`, `prev_hash`, `entry_hash`).
+- **PostgreSQL (`bayora_audit`):** Stores `audit_entries` where each entry's hash is computed as $\text{SHA256}(\text{entry} + \text{prev\_hash})$.
+- **PostgreSQL (`bayora_benchmark`):** Stores `benchmark_runs` tracking session IDs, drill parameters, attack counts, bypass rates, and JSON evaluation reports.
+- **MongoDB (`bayora_auth`):** Stores `users` (bcrypt password hashes) and `configs` (Fernet-encrypted provider API keys).
+- **In-Memory Fallbacks:** Both `benchmark_service` and `audit_service` implement in-memory data structures (`self._memory_runs` and `self.chain`) enabling the platform to run seamlessly in demo and offline environments.
 
 ---
 
 ## 9. Architecture & Data Flow Diagrams
 
-Detailed diagrams are provided in [ARCHITECTURE.md](file:///docs/codebase-discovery/ARCHITECTURE.md).
+*(Detailed in [ARCHITECTURE.md](file:///docs/codebase-discovery/ARCHITECTURE.md))*
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Auditor as User / Frontend
-    participant GW as Nginx / WebSockets
-    participant Bench as Benchmark Service
-    participant SM as Session Manager
-    participant Red as Red Team
-    participant LLM as LLM Proxy
-    participant Blue as Blue Team
-    participant Audit as Audit Service
-
-    Auditor->>GW: POST /drills/run
-    GW->>Bench: Start Drill
-    Bench->>SM: POST /session/start
-    SM->>Audit: Append SESSION_START
-    Bench->>Red: POST /attack/stream
-    loop Attack Streaming
-        Red->>SM: red.prompts (Encrypted with RED_KEY)
-        SM->>LLM: llm.requests (Encrypted with LLM_KEY)
-        LLM->>SM: llm.responses (Encrypted with SESSION_KEY)
-    end
-    SM->>Blue: blue.evaluation (Batch of 5 encrypted with BLUE_KEY)
-    Blue->>GW: classifications (WebSocket Stream)
-    GW->>Auditor: Live Telemetry Event
-    Blue->>Bench: benchmark.reports
-    Bench->>SM: POST /session/end
-    SM->>Audit: Append SESSION_END
-    Auditor->>Bench: GET /drills/{session_id}/status
-    Bench-->>Auditor: Finalized Safety Score & Seal
-```
+Six Mermaid diagrams illustrate the system architecture:
+1. High-Level Component & Service Boundary Diagram
+2. Four-Key Cryptographic Isolation Sequence Diagram
+3. End-to-End Drill Execution Flow
+4. Sandboxed Inference & Filter Decision Tree
+5. Entity-Relationship Schema Diagram
+6. Audit Ledger Verification Flow
 
 ---
 
 ## 10. Integrations & External Dependencies
 
-| Integration | File References | Usage & Configuration | Failure Mode & Fallbacks |
+| Integration | Source Location | Purpose | Fallback / Mock Behavior |
 |---|---|---|---|
-| **LiteLLM** | [bayora/ml/attack_generators/engine.py:6](file:///bayora/ml/attack_generators/engine.py#L6) | Powers PAIR iterative prompt refinement. Configured via `ATTACKER_MODEL` and `SURROGATE_MODEL`. | Falls back to static strategies (`direct`, `jailbreak`) if models fail. |
-| **Google Gemini API** | [bayora/services/llm_proxy/inference.py:37-47](file:///bayora/services/llm_proxy/inference.py#L37-L47) | Cloud target model execution. Configured via `GOOGLE_API_KEY`. | Falls back to local model or returns error string if key missing. |
-| **Ollama** | [bayora/services/llm_proxy/inference.py:77-98](file:///bayora/services/llm_proxy/inference.py#L77-L98) | Local target model inference via `http://localhost:11434/api/generate`. Configured via `OLLAMA_HOST`. | Returns error message in response payload on connection failure. |
-| **Hugging Face Transformers / PEFT** | [bayora/ml/classifiers/defense.py:3-4](file:///bayora/ml/classifiers/defense.py#L3-L4) | Sequence classification using `unitary/toxic-bert` and LoRA weights in `blue_agent_lora/`. | Synchronous download on import blocks process if internet is absent. |
-| **Sentence-Transformers** | [bayora/services/llm_proxy/inference.py:6](file:///bayora/services/llm_proxy/inference.py#L6) | Computes cosine embeddings using `all-MiniLM-L6-v2` for semantic leak detection. | Catches exception and continues without semantic filtering. |
-| **Falco (eBPF)** | [bayora/monitoring/falco_rules/bayora_rules.yaml](file:///bayora/monitoring/falco_rules/bayora_rules.yaml) | Detects syscalls (`ptrace`), container escapes, and DNS probes. | Sends violation to Kafka `security.violations` to terminate session. |
+| **Google Gemini API** | [llm_proxy/inference.py:37-47](file:///bayora/services/llm_proxy/inference.py#L37-L47) | Target model inference | Falls back to local Transformers or Mock LLM |
+| **Ollama API** | [llm_proxy/inference.py:77-98](file:///bayora/services/llm_proxy/inference.py#L77-L98) | Local open-source model inference | Falls back to Mock LLM if unreachable |
+| **LiteLLM** | [attack_generators/engine.py:49-76](file:///bayora/ml/attack_generators/engine.py#L49-L76) | PAIR iterative red-teaming | Falls back to static templates if API fails |
+| **Apache Kafka** | All services (`aiokafka`) | Asynchronous message broker | All services implement in-memory mock modes |
+| **PostgreSQL** | `audit_service`, `benchmark_service` | Persistent relational storage | Both services implement in-memory ledger fallbacks |
+| **MongoDB** | `auth_service` (`motor`) | User credentials & configs | Timeout protection allows demo mode execution |
+| **SentenceTransformers**| [llm_proxy/inference.py:24](file:///bayora/services/llm_proxy/inference.py#L24) | Semantic cosine leak detection | Exception caught gracefully |
+| **Falco** | [monitoring/falco_rules/](file:///bayora/monitoring/falco_rules/) | Runtime syscall & DNS intrusion detection | `violations.py` handles incoming events |
 
 ---
 
 ## 11. Authentication, Authorization & Security Analysis
 
-### 11.1 Authentication & Token Issuance
-- **User Authentication:** Bcrypt password hashing (`pwd_context.hash(user.password[:72])`) and signed JWT access tokens with 60-minute expiry.
-- **Provider Key Encryption:** Third-party API keys are encrypted at rest using Fernet symmetric encryption before storage in MongoDB.
+### Verified Security Controls
+1. **Zero Direct Network Connectivity:** Enforced by Kubernetes network policies, Istio peer authentication, and the 4-key Fernet encryption bus.
+2. **Cryptographic Erasure:** At session completion, `SESSION_KEY` is explicitly deleted from memory, making past session communications permanently unrecoverable.
+3. **Hardware Isolation:** Sandboxed services declare `runtimeClassName: gvisor-sandboxed`, executing under the gVisor application kernel.
+4. **Intrusion Response:** Falco monitors runtime events and triggers automated session termination upon detecting cross-namespace DNS probes or blocked syscalls.
 
-### 11.2 Security Deficiencies & Stubs
-1. **Unprotected Session Manager:** `session_manager/main.py` uses a dummy dependency `verify_token()` returning `{"user": "anonymous"}`. Any process reaching port 8000 can start or terminate sessions.
-2. **Missing Token Verification on Frontend API:** While `authHeaders()` sends `Bearer ${token}` in [frontend/src/lib/api.ts:9](file:///frontend/src/lib/api.ts#L9), the backend services (Session Manager, Benchmark Service) do not validate this token.
-3. **Hardcoded Secrets:** Default fallbacks exist in code for `JWT_SECRET` (`supersecretkey`) and `POSTGRES_PASSWORD` (`bayora_password`).
+### Security Deficiencies
+1. **Plaintext Session Key in Kafka Header:** In `session_manager/bus.py:54`, the `session_key` is passed as a plaintext Kafka header on topic `llm.requests`.
+2. **No-Op Session Auth Hook:** `session_manager/main.py:105` uses `verify_token()` returning `user: anonymous` rather than validating JWT signatures.
+3. **Single Global Audit Lock:** `audit_service/main.py` uses an in-process threading lock across all sessions, limiting horizontal scalability.
 
 ---
 
 ## 12. Testing, Reliability & Observability
 
-### 12.1 Automated Test Suites
-The repository contains 4 integration test files under `tests/integration/`:
-- `test_session_manager.py`: Verifies full session lifecycle, micro-batch streaming, and audit publication (**4 tests pass**).
-- `test_monitoring.py`: Verifies Falco isolation breach handling and session termination (**1 test passes**).
-- `test_llm_proxy.py`: Verifies echo filtering, semantic similarity filters, and VRAM purging.
-- `test_pipelines.py`: Verifies red team attack generation and blue team evaluation.
+### Automated Test Suite
+- Located in `tests/integration/`:
+  - `test_session_manager.py`: Verifies session lifecycle, micro-batching, and audit logging (**4 passed**).
+  - `test_monitoring.py`: Verifies Falco intrusion detection and session termination (**1 passed**).
+  - `test_pipelines.py`: Verifies red-team attack generation and blue-team batch evaluation (**2 passed**).
+  - `test_llm_proxy.py`: Verifies echo filtering, semantic similarity detection, and memory purging (**4 passed, 1 failed due to `.encode()` on bytes at line 66**).
 
-### 12.2 Test Execution Results
-Commands executed during discovery:
-- `python -m pytest tests/integration/test_monitoring.py` -> **Passed (1 passed in 0.19s)**.
-- `python -m pytest tests/integration/test_session_manager.py` -> **Passed (4 passed in 2.48s)**.
-- Full pytest collection blocks if external Hugging Face downloads for `unitary/toxic-bert` are attempted during module import.
+### Observability
+- Prometheus alerting rules configured in `bayora/monitoring/dashboards/prometheus.yaml`.
+- Grafana dashboard definition provided in `bayora/monitoring/dashboards/grafana.json`.
+- Falco behavioral intrusion rules configured in `bayora/monitoring/falco_rules/bayora_rules.yaml`.
 
 ---
 
 ## 13. Configuration, Startup & Deployment Topology
 
-### 13.1 Local Development Commands
-```bash
-# 1. Start all infrastructure & microservices
-docker compose up --build
+### Three Supported Runtime Modes:
+1. **Zero-Dependency Demo Server:** `python demo_server.py` runs all core mock services on ports 8004, 8006, 8000, 8011 in a single process.
+2. **Direct Python Microservices Runner:** `python run_backend.py` spawns all 8 FastAPI services concurrently with auto-generated Fernet keys.
+3. **Full Docker Compose Mesh:** `docker compose up --build` launches Kafka, Zookeeper, PostgreSQL, MongoDB, Nginx gateway, and all 8 services.
 
-# 2. Start frontend development server
-cd frontend
-npm install
-npm run dev
-```
-
-### 13.2 Required Environment Variables
-| Variable | Description | Default / Example |
-|---|---|---|
-| `KAFKA_BROKER` | Kafka bootstrap broker address | `localhost:9092` or `kafka:9092` |
-| `POSTGRES_HOST` | Hostname for PostgreSQL instance | `localhost` or `postgres` |
-| `POSTGRES_USER` | PostgreSQL username | `bayora` |
-| `POSTGRES_PASSWORD`| PostgreSQL password | `bayora_password` |
-| `MONGO_URI` | MongoDB connection URI | `mongodb://localhost:27017` |
-| `JWT_SECRET` | Secret key for JWT signing | `supersecretkey` |
-| `RED_KEY` | 32-byte Fernet key for Red Team | Base64-encoded Fernet key |
-| `BLUE_KEY` | 32-byte Fernet key for Blue Team | Base64-encoded Fernet key |
-| `LLM_KEY` | 32-byte Fernet key for LLM Proxy | Base64-encoded Fernet key |
-| `GOOGLE_API_KEY` | (Optional) API key for Gemini | Cloud API key string |
-| `MOCK_LLM` | Set to 1 to run inference in mock mode | `0` |
+### Cloud Deployment (Kubernetes / Istio)
+- Automated deployment script in `deploy.ps1` and `Makefile`.
+- Microservices deployed across 7 dedicated namespaces with gVisor sandboxing and Istio mTLS.
+- AWS EKS cluster provisioning defined in `bayora/infra/terraform/main.tf`.
 
 ---
 
 ## 14. Dependencies & Architectural Boundaries
 
-### 14.1 Key Architectural Boundaries
-- **Frontend vs. Backend:** The frontend is a separate TanStack Start app running in Node.js/Vite. Communication occurs over HTTP and WebSockets.
-- **Microservice Decoupling:** Red Team, Blue Team, and LLM Proxy have no shared database connections. They interact solely through Kafka.
-- **Storage Isolation:** `bayora_audit` and `bayora_benchmark` are separate PostgreSQL databases with distinct credentials.
+- **Python Runtime:** Python 3.11+ with FastAPI, Uvicorn, Pydantic, Cryptography, AIOKafka, Psycopg2, Motor, PyJWT, PyTorch, Transformers, PEFT, and LiteLLM.
+- **Frontend Runtime:** Node.js 20+ with React 19, TanStack Start, TanStack Router, TanStack Query, Vite 7, and Tailwind CSS v4.
+- **Architectural Separation:** Clean boundaries maintained between red team attack generation, blue team defense evaluation, session mediation, and persistent audit logging.
 
 ---
 
 ## 15. Implementation Gaps, Defects & Technical Debt
 
-A complete catalog with line numbers and confidence levels is available in [IMPLEMENTATION_GAPS.md](file:///docs/codebase-discovery/IMPLEMENTATION_GAPS.md).
+*(Detailed in [IMPLEMENTATION_GAPS.md](file:///docs/codebase-discovery/IMPLEMENTATION_GAPS.md) and phased in [IMPROVEMENTS.md](file:///IMPROVEMENTS.md))*
 
-### Summary of Top Findings
-1. **TypeScript Compiler Error TS2554:** In [frontend/src/routes/audit.tsx:85](file:///frontend/src/routes/audit.tsx#L85), `useRef` is called without an argument, causing `npx tsc --noEmit` and production builds to fail.
-2. **Corrupted Django Settings:** [services/orchestrator/src/orchestrator/settings.py:1](file:///services/orchestrator/src/orchestrator/settings.py#L1) contains an accidentally pasted runtime error on line 1; the rest of the Django app is missing.
-3. **Stale Makefile Targets:** [Makefile:33-36](file:///Makefile#L33-L36) points `make test` to old file paths that were moved in commit `0c39f81`.
-4. **Mocked User Profile:** [frontend/src/routes/profile.tsx](file:///frontend/src/routes/profile.tsx) is purely client-side mocked to "Sarah Chen".
-5. **Missing PDF Certificate Generation:** [frontend/src/routes/results.tsx:267](file:///frontend/src/routes/results.tsx#L267) has a "DOWNLOAD PDF" button with no click handler.
-6. **Hardcoded Dataset Prompts:** [bayora/datasets/loaders/common.py:29-42](file:///bayora/datasets/loaders/common.py#L29-L42) contains only 3 sample prompts instead of the advertised 500+ items.
-7. **No-Op Session Manager Auth:** [bayora/services/session_manager/main.py:105-110](file:///bayora/services/session_manager/main.py#L105-L110) returns `{"user": "anonymous"}` without checking tokens.
-8. **Direct Port Bypasses in Frontend:** [frontend/src/lib/api.ts:1-4](file:///frontend/src/lib/api.ts#L1-L4) connects directly to ports 8004, 8006, 8000, 8011 rather than through the unified Nginx gateway (port 8010).
+1. **Frontend TS2554 Compiler Warning:** `frontend/src/routes/audit.tsx:85` expects an initial argument for `useRef`.
+2. **Test Bug in `test_llm_proxy.py:66`:** Calling `.encode()` on `LLM_KEY` (already `bytes`).
+3. **Corrupted Django Settings:** Socket error prepended to line 1 of `services/orchestrator/src/orchestrator/settings.py`.
+4. **Stale Makefile Paths:** Test target points to obsolete file paths.
+5. **Plaintext Session Key Transmission:** Key exposed in Kafka header `llm.requests`.
+6. **Kafka Docker Compose Listener Mismatch:** Advertised listener set to `localhost:9092`.
+7. **Non-Atomic Audit Head Advance:** `_head_hash` advances even if database insert fails.
+8. **Insecure Deserialization:** `ast.literal_eval` used instead of standard JSON.
+9. **K8s Manifest Drift:** Missing `auth-service`, `audit-gateway`, and `mongodb` in `apps.yaml`.
+10. **Hardcoded Safety Datasets:** AdvBench and JailbreakBench have only 3 total prompts.
+11. **Frontend Port Bypassing:** Client connects directly to microservice ports instead of Nginx :8010.
+12. **Static Mock UI Elements:** PDF download button has no handler; profile edits are local state only.

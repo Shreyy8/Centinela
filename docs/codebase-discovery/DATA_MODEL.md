@@ -1,88 +1,91 @@
-# Centinela (Bayora) — Database & Data Lifecycle Specification
+# Centinela (Bayora) — Data Model & Storage Lifecycle
 
-> **Component:** Storage Systems, Database Schemas, Event Payloads & Cryptographic Ledger  
-> **Repository:** [Centinela](https://github.com/Shreyy8/Centinela.git)  
+> **Document Type:** Database Schema, Storage Systems & Cryptographic Data Lifecycle  
+> **Repository:** [Centinela (formerly Bayora)](https://github.com/Shreyy8/Centinela.git)  
+> **Status:** Code-verified against database initialization scripts  
 
 ---
 
 ## 1. Storage Systems Overview
 
-Centinela persists data across two distinct database engines and one high-throughput message streaming cluster:
+Centinela employs a polyglot persistence architecture configured for regulatory compliance and audit isolation:
 
-| Engine | Database / Namespace | Service Owner | Primary Entities | Connection / Driver |
+| Datastore | Technology | Database / Instance | Key Entities | Resilience Pattern |
 |---|---|---|---|---|
-| **PostgreSQL 16** | `bayora_audit` | [Audit Service](file:///bayora/services/audit_service/main.py#L19-L25) | Immutable audit log ledger | `psycopg2` (autocommit mode, raw SQL) |
-| **PostgreSQL 16** | `bayora_benchmark` | [Benchmark Service](file:///bayora/services/benchmark_service/database.py#L9-L15) | Audit drill runs, progress counters, leaderboard | `psycopg2` (autocommit mode, raw SQL) |
-| **MongoDB 7+** | `bayora_auth` | [Auth & Config Service](file:///bayora/services/auth_service/main.py#L32-L34) | User credentials, encrypted LLM provider API keys | `motor.motor_asyncio` (Async MongoDB driver) |
-| **Apache Kafka** | Cluster | All Microservices | Asynchronous cross-tenant event streaming | `aiokafka` (async producer/consumer) |
+| **Audit Ledger** | PostgreSQL 16 | `bayora_audit` | `audit_entries` (SHA-256 Merkle chain) | In-memory chain fallback (`self.chain`) |
+| **Benchmark Store**| PostgreSQL 16 | `bayora_benchmark` | `benchmark_runs` (Drill results & leaderboard) | In-memory runs fallback (`self._memory_runs`)|
+| **Auth & Config** | MongoDB | `bayora_auth` | `users`, `configs` (Encrypted API keys) | Timeout-protected fallback (`demo_mode`) |
+| **Volatile State** | In-Memory / Python | All Services | `session_keys`, `session_stores`, `active_sessions` | Explicit destruction via garbage collection |
 
 ---
 
-## 2. Entity Relationship Diagram (ERD)
+## 2. Entity-Relationship & Schema Diagram
 
 ```mermaid
 erDiagram
-    USERS ||--o{ CONFIGS : "owns"
+    USERS ||--o| CONFIGS : "owns"
+    BENCHMARK_RUNS ||--o{ AUDIT_ENTRIES : "correlates via session_id"
+
     USERS {
         ObjectId _id PK
-        string email UK "User primary identifier (EmailStr)"
-        string password "Bcrypt hash (72-char truncated)"
-        datetime created_at "UTC creation timestamp"
+        string email UK "Indexed unique user email"
+        string hashed_password "Bcrypt password hash"
+        datetime created_at "Account creation timestamp"
     }
 
     CONFIGS {
         ObjectId _id PK
-        string email UK "Foreign key to USERS.email"
-        string provider "OPENAI | ANTHROPIC | OLLAMA | CUSTOM"
+        string email FK "User email reference"
+        string api_key_encrypted "Fernet-encrypted provider API key"
+        string provider "OPENAI, ANTHROPIC, OLLAMA, CUSTOM"
         string model "Target model identifier"
-        string domain "Healthcare | Finance | Legal | General"
-        string severity "INFO | LOW | MEDIUM | HIGH | CRITICAL"
-        int budget "Adversarial depth (token limit in K)"
+        string domain "Healthcare, Finance, Legal, General"
+        string severity "INFO, LOW, MEDIUM, HIGH, CRITICAL"
+        int budget "Adversarial audit budget USD"
         string system_prompt "Target model system instructions"
-        string organization "Target organization name"
-        string auditor "Auditor full name"
-        string api_key_encrypted "Fernet symmetric encrypted API key"
-        datetime updated_at "UTC last update timestamp"
+        string organization "Auditee organization name"
+        string auditor "Auditor full name & credentials"
+        datetime updated_at "Last updated timestamp"
     }
 
-    BENCHMARK_RUNS ||--o{ AUDIT_ENTRIES : "correlates by session_id"
     BENCHMARK_RUNS {
-        int id PK "Serial primary key"
-        string session_id UK "UUIDv4 session identifier"
-        string drill_name "Human-readable drill title"
-        string dataset_name "advbench | jailbreakbench | combined"
-        string dataset_version "Dataset manifest version (e.g., 1.0)"
-        string adapter_version "LoRA adapter version (e.g., 1.0)"
-        int total_attacks "Configured attack count target"
-        int attacks_sent "Count of generated prompts streamed"
-        int responses_received "Count of LLM responses collected"
-        int total_pairs "Total prompt-response evaluation pairs"
-        int harmful_detected "Count of responses classified as harmful"
-        float bypass_rate "Ratio of harmful / total_pairs"
-        string status "pending | running | completed | cancelled | failed"
-        jsonb report "Detailed per-prompt classification payload"
-        timestamp created_at "Session launch timestamp"
-        timestamp completed_at "Session completion timestamp"
+        int id PK "Serial auto-increment"
+        string session_id UK "UUID4 session identifier"
+        string drill_name "Human-readable drill description"
+        string dataset_name "advbench, jailbreakbench, combined"
+        string dataset_version "Dataset version identifier"
+        string adapter_version "Defense LoRA adapter version"
+        int total_attacks "Target attack count"
+        int attacks_sent "Count of attacks emitted"
+        int responses_received "Count of responses received"
+        int total_pairs "Total evaluated pairs"
+        int harmful_detected "Count of toxic/bypassed responses"
+        float bypass_rate "harmful_detected / total_pairs (0.0 to 1.0)"
+        string status "pending, running, completed, cancelled, failed"
+        jsonb report "Detailed evaluation report and category stats"
+        timestamp created_at "Run start timestamp"
+        timestamp completed_at "Run completion timestamp"
     }
 
     AUDIT_ENTRIES {
-        int id PK "Serial sequential block height"
-        string event_type "SESSION_START | PROMPT_SENT | RESPONSE_RECEIVED | BATCH_RELEASED | SESSION_END | ISOLATION_BREACH"
-        string source_namespace "session-manager | red-team | llm-sandbox | falco-sink"
-        string session_id "Correlating UUIDv4 session identifier"
-        string payload_hash "SHA256 hex digest of plaintext payload"
-        bigint timestamp_ns "Nanosecond epoch timestamp"
-        string prev_hash "SHA256 hex digest of previous entry (Genesis: SHA256('genesis'))"
-        string entry_hash "SHA256 hex digest of the canonical entry JSON"
+        int id PK "Serial sequence number"
+        string event_type "SESSION_START, PROMPT_SENT, RESPONSE_RECEIVED, etc."
+        string source_namespace "session-manager, red-team, llm-sandbox, etc."
+        string session_id "Correlating drill session UUID"
+        string payload_hash "SHA-256 digest of payload"
+        bigint timestamp_ns "Nanosecond Unix epoch timestamp"
+        string prev_hash "64-char SHA-256 of preceding entry"
+        string entry_hash "64-char SHA-256 of current entry state"
     }
 ```
 
 ---
 
-## 3. Relational Database Schemas (PostgreSQL)
+## 3. Relational Schemas (PostgreSQL)
 
 ### 3.1 `bayora_audit.audit_entries`
-Defined in [bayora/services/audit_service/main.py:45-55](file:///bayora/services/audit_service/main.py#L45-L55):
+Defined in [bayora/services/audit_service/main.py:44-55](file:///bayora/services/audit_service/main.py#L44-L55).
+
 ```sql
 CREATE TABLE IF NOT EXISTS audit_entries (
     id SERIAL PRIMARY KEY,
@@ -95,12 +98,20 @@ CREATE TABLE IF NOT EXISTS audit_entries (
     entry_hash VARCHAR(64) NOT NULL
 );
 ```
-- **Cryptographic Chaining:** Each record incorporates `prev_hash`. The first record is linked to `hashlib.sha256(b"genesis").hexdigest()`.
-- **Integrity Rule:** `entry_hash = SHA256(json.dumps({event_type, source_namespace, session_id, payload_hash, timestamp_ns, prev_hash}, sort_keys=True))`.
-- **Immutability:** No `UPDATE` or `DELETE` statements are ever executed against this table.
+
+#### Fields & Forensic Constraints:
+- `event_type`: Categorizes boundary activity (`SESSION_START`, `PROMPT_SENT`, `RESPONSE_RECEIVED`, `BATCH_RELEASED`, `SESSION_END`, `ISOLATION_BREACH`).
+- `source_namespace`: Kubernetes namespace originating the action.
+- `session_id`: Unique identifier binding entries to a specific drill.
+- `payload_hash`: SHA-256 hash of the plaintext message payload (ensures plaintext content is never persisted in the audit database).
+- `timestamp_ns`: Monotonic timestamp recorded via `time.time_ns()`.
+- `prev_hash`: Pointer to the `entry_hash` of the preceding record (initialized to `SHA-256("genesis")`).
+- `entry_hash`: Hash digest computed over the JSON representation of the entry:
+  $$\text{entry\_hash} = \text{SHA256}(\text{JSON}(\text{event\_type}, \text{source\_namespace}, \text{session\_id}, \text{payload\_hash}, \text{timestamp\_ns}, \text{prev\_hash}))$$
 
 ### 3.2 `bayora_benchmark.benchmark_runs`
-Defined in [bayora/services/benchmark_service/database.py:31-55](file:///bayora/services/benchmark_service/database.py#L31-L55):
+Defined in [bayora/services/benchmark_service/database.py:31-56](file:///bayora/services/benchmark_service/database.py#L31-L56).
+
 ```sql
 CREATE TABLE IF NOT EXISTS benchmark_runs (
     id SERIAL PRIMARY KEY,
@@ -127,67 +138,65 @@ CREATE INDEX IF NOT EXISTS idx_benchmark_runs_status ON benchmark_runs(status);
 
 ---
 
-## 4. Document Database Schemas (MongoDB)
+## 4. Document Store Schema (MongoDB `bayora_auth`)
+
+Managed by Motor (AsyncIO MongoDB driver) in [bayora/services/auth_service/main.py](file:///bayora/services/auth_service/main.py).
 
 ### 4.1 Collection: `users`
-Database: `bayora_auth`
 ```json
 {
-  "_id": "ObjectId(...)",
-  "email": "user@enterprise.com",
-  "password": "$2b$12$e8...hashed_bcrypt_string...",
-  "created_at": "2026-10-09T06:00:00.000Z"
+  "_id": { "$oid": "664fa1e2b4c19a0012345678" },
+  "email": "sarah.chen@northwind.health",
+  "hashed_password": "$2b$12$e8YkZ8Q8k3P.q8eF...bcrypt...",
+  "created_at": { "$date": "2026-10-15T09:00:00Z" }
 }
 ```
-- **Password Hashing:** Passlib `pwd_context.hash(user.password[:72])` using bcrypt. Passwords longer than 72 bytes are truncated as required by bcrypt.
 
 ### 4.2 Collection: `configs`
-Database: `bayora_auth`
 ```json
 {
-  "_id": "ObjectId(...)",
-  "email": "user@enterprise.com",
+  "_id": { "$oid": "664fa1e2b4c19a0012345679" },
+  "email": "sarah.chen@northwind.health",
+  "api_key_encrypted": "gAAAAABl6Z8Q8k3P...fernet-ciphertext...",
   "provider": "OPENAI",
   "model": "gpt-4-turbo-preview",
   "domain": "Healthcare",
   "severity": "MEDIUM",
   "budget": 250,
-  "system_prompt": "You are a helpful assistant...",
+  "system_prompt": "You are a helpful assistant specialized in security research.",
   "organization": "Northwind Health",
-  "auditor": "Sarah Chen",
-  "api_key_encrypted": "gAAAAABl...",
-  "updated_at": "2026-10-09T06:05:00.000Z"
+  "auditor": "Sarah Chen, CISO",
+  "updated_at": { "$date": "2026-10-18T10:15:00Z" }
 }
 ```
-- **API Key Security:** Symmetrically encrypted with Fernet key `CONFIG_ENCRYPTION_KEY`. When retrieved via `GET /config/api-key`, only a preview is returned: `decrypted[:4] + "..." + decrypted[-4:]`.
 
 ---
 
-## 5. Kafka Event Bus Specifications
+## 5. Data Lifecycle & Cryptographic Verification
 
-| Topic Name | Producer | Consumer | Format & Encryption | Schema / Payload Fields |
-|---|---|---|---|---|
-| `red.prompts` | `red-team` | `session-manager` | Binary encrypted with `RED_KEY`. Headers: `[("session_id", ...)]` | Raw bytes of Fernet envelope containing `{"text": "<prompt>", "media": []}` |
-| `llm.requests` | `session-manager` | `llm-proxy` | Binary encrypted with `LLM_KEY`. Headers: `[("session_id", ...), ("session_key", ...)]` | Raw bytes of Fernet envelope containing prompt plaintext |
-| `llm.responses` | `llm-proxy` | `session-manager` | Binary encrypted with `SESSION_KEY`. Headers: `[("session_id", ...)]` | Raw bytes of Fernet envelope containing response text |
-| `blue.evaluation` | `session-manager` | `blue-team` | Binary encrypted with `BLUE_KEY`. Headers: `[("session_id", ...)]` | Raw bytes of Fernet envelope containing python string list `str([resp1, resp2, ...])` |
-| `classifications` | `blue-team` | `audit-gateway` | Plaintext UTF-8 JSON. Headers: `[("session_id", ...)]` | `{"session_id": str, "type": "classification", "prompt_index": int, "response_snippet": str, "is_harmful": bool, "confidence": float, "category": str, "timestamp": int}` |
-| `benchmark.reports` | `blue-team` | `benchmark-service` | Plaintext UTF-8 JSON. Headers: `[("session_id", ...)]` | `{"session_id": str, "report": {"summary": {"total_pairs": int, "harmful_detected": int, "bypass_rate": float}, "details": [...]}, "timestamp": int}` |
-| `audit.events` | `session-manager` | `audit-service`, `audit-gateway` | Plaintext UTF-8 JSON | `{"event_type": str, "source_namespace": str, "session_id": str, "payload_hash": str}` |
-| `session.progress` | `benchmark-service` | `audit-gateway` | Plaintext UTF-8 JSON. Headers: `[("session_id", ...)]` | `{"session_id": str, "type": "progress|drill_started|classification_complete|session_ended", "status": str, ...}` |
-| `security.violations` | Falco daemon | `session-manager` (via `violations.py`) | Plaintext UTF-8 JSON | `{"session_id": str, "output": str, "priority": str}` |
+```mermaid
+flowchart TD
+    Init[Drill Initialized: POST /drills/run] --> GenSession[Generate UUID4 & 32-byte Fernet Key]
+    GenSession --> LogStart[Emit SESSION_START to audit.events]
+    LogStart --> AuditPersist[Audit Service: Append to Merkle Chain]
+    
+    AuditPersist --> ExecDrill[Execute Attacks & Classify Responses]
+    ExecDrill --> LogPrompt[Audit Service: Hash & Log PROMPT_SENT]
+    ExecDrill --> LogResponse[Audit Service: Hash & Log RESPONSE_RECEIVED]
+    ExecDrill --> LogBatch[Audit Service: Hash & Log BATCH_RELEASED]
 
----
-
-## 6. In-Memory State & Lifecycle
-
-### In-Memory Dictionaries in [bayora/services/session_manager/bus.py](file:///bayora/services/session_manager/bus.py#L24-L28)
-```python
-self.session_stores = {}       # session_id -> list of raw encrypted responses
-self.unreleased_stores = {}     # session_id -> list of buffered responses pending release
-self.session_keys = {}         # session_id -> Fernet instance
-self.session_raw_keys = {}     # session_id -> raw 32-byte Fernet key string
+    ExecDrill --> DrillEnd[Drill Completed: POST /session/end]
+    DrillEnd --> LogEnd[Audit Service: Hash & Log SESSION_END]
+    LogEnd --> PurgeKey[Purge In-Memory Key & Flush VRAM]
+    
+    subgraph "Verification Procedure: GET /verify"
+        QueryLedger[SELECT * FROM audit_entries ORDER BY id ASC]
+        QueryLedger --> Loop[Traverse sequentially from genesis hash]
+        Loop --> ParityCheck{recomputed_hash == entry_hash && prev_hash == current_prev}
+        ParityCheck -->|Parity Holds| IncLength[chain_length += 1, current_prev = entry_hash]
+        ParityCheck -->|Discrepancy| TamperDetected[Return valid=False: Tampering detected]
+        IncLength --> EndLoop{End of ledger?}
+        EndLoop -->|No| Loop
+        EndLoop -->|Yes| ValidReturn[Return valid=True, chain_length, head_hash]
+    end
 ```
-- **Creation:** Instantiated upon `POST /session/start`.
-- **Buffering:** Ingested responses sit in `unreleased_stores` until count reaches `batch_size` (default: 5).
-- **Destruction:** Explicitly deleted upon `POST /session/end` or when an isolation breach terminates the session in `ViolationHandler`.
