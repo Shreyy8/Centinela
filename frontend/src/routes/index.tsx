@@ -60,7 +60,7 @@ function Navbar() {
           Log In
         </Link>
         <Link
-          to="/login"
+          to="/config"
           className="px-4 py-2 rounded-lg bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white text-sm transition-colors"
         >
           Get Started

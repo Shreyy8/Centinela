@@ -13,11 +13,12 @@ function authHeaders(): Record<string, string> {
 async function handleResponse(resp: Response) {
   if (!resp.ok) {
     if (resp.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user_email");
-      if (typeof window !== "undefined") {
-        window.location.href = "/login?redirect=" + encodeURIComponent(window.location.pathname);
-      }
+      // Auth redirect commented out for demo / local recording
+      // localStorage.removeItem("token");
+      // localStorage.removeItem("user_email");
+      // if (typeof window !== "undefined") {
+      //   window.location.href = "/login?redirect=" + encodeURIComponent(window.location.pathname);
+      // }
     }
     const errorData = await resp.json().catch(() => ({ detail: "Request failed" }));
     throw new Error(errorData.detail || `HTTP ${resp.status}`);

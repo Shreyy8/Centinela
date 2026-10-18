@@ -139,22 +139,28 @@ async def generate_attacks(req: GenerateRequest):
 
 @app.post("/attack/stream")
 async def stream_attacks(req: StreamRequest, background_tasks: BackgroundTasks):
-    if not kafka_producer:
-        raise HTTPException(status_code=503, detail="Kafka producer not initialized")
-    
-    background_tasks.add_task(
-        stream_attacks_task, 
-        req.session_id, 
-        req.count, 
-        dataset_name=req.dataset_name, 
-        strategy_override=req.strategy
-    )
-    return {
-        "status": "streaming_started", 
-        "session_id": req.session_id, 
-        "target_count": req.count,
-        "message": f"Background engine is streaming {req.count} attacks to Kafka topic 'red.prompts'."
-    }
+    if kafka_producer:
+        background_tasks.add_task(
+            stream_attacks_task, 
+            req.session_id, 
+            req.count, 
+            dataset_name=req.dataset_name, 
+            strategy_override=req.strategy
+        )
+        return {
+            "status": "streaming_started", 
+            "session_id": req.session_id, 
+            "target_count": req.count,
+            "message": f"Background engine is streaming {req.count} attacks to Kafka topic 'red.prompts'."
+        }
+    else:
+        print(f"ℹ️ [Red Team] Stream request received for {req.session_id} (Running in mock mode).")
+        return {
+            "status": "mock_streaming_started",
+            "session_id": req.session_id,
+            "target_count": req.count,
+            "message": "Acknowledged in mock mode (Audit Gateway simulation active)."
+        }
 
 @app.post("/attack/stop/{session_id}")
 async def stop_stream(session_id: str):

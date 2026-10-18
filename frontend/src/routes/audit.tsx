@@ -88,11 +88,13 @@ function LiveAudit() {
     if (!session_id) return;
     setWsStatus("connecting");
 
-    const token = localStorage.getItem("token");
-    if (!token) {
-      navigate({ to: "/login", search: { redirect: "/audit" } as any });
-      return;
-    }
+    // Auth check commented out for demo / local recording
+    // const token = localStorage.getItem("token");
+    // if (!token) {
+    //   navigate({ to: "/login", search: { redirect: "/audit" } as any });
+    //   return;
+    // }
+    const token = localStorage.getItem("token") || "demo_token";
 
     const ws = new WebSocket(`${WS_URL}/ws/${session_id}?token=${token}`);
     wsRef.current = ws;
