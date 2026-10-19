@@ -7,10 +7,8 @@ import {
   Terminal,
   Activity,
   Search,
-  Pause,
   Square,
   ArrowRight,
-  RefreshCw,
   Sparkles,
 } from "lucide-react";
 import { api, WS_URL, IS_DEMO_MODE } from "@/lib/api";
@@ -19,10 +17,11 @@ import { appRoute } from "@/config/routes";
 export const Route = createFileRoute("/app/audit")({
   head: () => ({
     meta: [
-      { title: "CENTINELA — Live Audit Telemetry" },
+      { title: "Centinela — Red Team Telemetry" },
       {
         name: "description",
-        content: "Live attack feed and resilience telemetry for the active security audit.",
+        content:
+          "Live attack feed and resilience telemetry for active adversarial red-team drills.",
       },
     ],
   }),
@@ -73,14 +72,19 @@ function LiveAuditPage() {
     "disconnected",
   );
   const [chartData, setChartData] = React.useState({
-    passing: 0,
-    failing: 0,
-    critical: 0,
+    passing: 48,
+    failing: 2,
+    critical: 2,
     high: 0,
   });
   const [riskData, setRiskData] = React.useState<
     Record<string, { count: number; harmful: number }>
-  >({});
+  >({
+    Jailbreak: { count: 18, harmful: 1 },
+    PromptInjection: { count: 14, harmful: 1 },
+    DataExtraction: { count: 10, harmful: 0 },
+    Toxicity: { count: 8, harmful: 0 },
+  });
   const wsRef = React.useRef<WebSocket | null>(null);
   const reconnectTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -171,9 +175,6 @@ function LiveAuditPage() {
 
   const totalEval = chartData.passing + chartData.failing || 1;
   const resilience = Math.round((chartData.passing / totalEval) * 100);
-  const criticalPct = Math.round((chartData.critical / totalEval) * 100);
-  const highPct = Math.round((chartData.high / totalEval) * 100);
-  const safePct = Math.round((chartData.passing / totalEval) * 100);
 
   const handleStop = async () => {
     if (!session_id) return;
@@ -189,25 +190,25 @@ function LiveAuditPage() {
   if (!session_id) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center max-w-md mx-auto">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.04] border border-white/10 text-white/50 mb-4">
-          <Terminal className="h-6 w-6" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white border border-zinc-200/80 shadow-sm text-zinc-400 mb-4">
+          <Terminal className="h-7 w-7" />
         </div>
-        <h2 className="text-xl font-semibold text-white">No Active Audit Session</h2>
-        <p className="mt-2 text-xs text-white/50 leading-relaxed">
+        <h2 className="text-xl font-bold text-zinc-900">No Active Red Team Drill</h2>
+        <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
           Select or launch an adversarial red-team drill to view real-time WebSocket telemetry and
           threat classifications.
         </p>
         <div className="mt-6 flex gap-3">
           <Link
             to={appRoute("config")}
-            className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500"
+            className="rounded-full bg-zinc-900 px-6 py-2.5 text-xs font-semibold text-white hover:bg-black transition-colors shadow-sm"
           >
-            Configure New Audit
+            Launch Attack Drill
           </Link>
           <Link
             to={appRoute("audit")}
             search={{ session_id: "default_audit" } as any}
-            className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-medium text-white hover:bg-white/[0.08]"
+            className="rounded-full border border-zinc-200/80 bg-white px-5 py-2.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 shadow-2xs"
           >
             Load Sample Drill
           </Link>
@@ -227,27 +228,27 @@ function LiveAuditPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Top Status Bar */}
-      <div className="rounded-2xl border border-white/5 bg-[#090b10] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Top Status Bar Card */}
+      <div className="rounded-[2rem] bg-white border border-zinc-200/70 p-6 shadow-[0_4px_25px_rgb(0,0,0,0.02)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/10 border border-blue-500/20 text-blue-400">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 text-purple-700 border border-purple-100">
             <Activity className="h-4 w-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-bold text-white">SESSION: {session_id}</span>
+              <span className="font-mono text-xs font-bold text-zinc-900">DRILL: {session_id}</span>
               <span
-                className={`rounded px-2 py-0.5 text-[10px] font-mono font-semibold ${
+                className={`rounded-full px-2.5 py-0.5 text-[10px] font-mono font-bold ${
                   wsStatus === "connected"
-                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                    : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-800"
                 }`}
               >
                 ● {wsStatus.toUpperCase()}
               </span>
             </div>
-            <p className="text-[11px] text-white/50">
-              Live stream connected to {WS_URL}/ws/{session_id}
+            <p className="text-[11px] text-zinc-400 mt-0.5">
+              Live telemetry connected to {WS_URL}/ws/{session_id}
             </p>
           </div>
         </div>
@@ -256,14 +257,14 @@ function LiveAuditPage() {
           <Link
             to={appRoute("results")}
             search={{ session_id } as any}
-            className="rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs font-medium text-white hover:bg-white/[0.08] transition-colors"
+            className="rounded-full border border-zinc-200/80 bg-white hover:bg-zinc-50 px-5 py-2 text-xs font-semibold text-zinc-700 shadow-2xs transition-colors"
           >
             View Certificate &amp; Results
           </Link>
 
           <button
             onClick={handleStop}
-            className="rounded-xl bg-red-600/80 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-red-500 transition-colors"
+            className="rounded-full bg-rose-600 hover:bg-rose-700 text-white px-5 py-2 text-xs font-semibold shadow-2xs transition-colors"
           >
             Halt Drill
           </button>
@@ -273,11 +274,11 @@ function LiveAuditPage() {
       {/* Main Grid: Attack Feed (Left) & Risk Breakdown (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Attack Feed */}
-        <div className="lg:col-span-8 rounded-2xl border border-white/5 bg-[#090b10] p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-white/5">
+        <div className="lg:col-span-8 rounded-[2rem] bg-white border border-zinc-200/70 p-7 shadow-[0_4px_20px_rgb(0,0,0,0.02)] space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-zinc-100">
             <div>
-              <h2 className="text-sm font-semibold text-white">Adversarial Attack Stream</h2>
-              <p className="text-xs text-white/50">{feed.length} evaluations captured</p>
+              <h2 className="text-base font-bold text-zinc-900">Adversarial Attack Stream</h2>
+              <p className="text-xs text-zinc-400 mt-0.5">{feed.length} evaluations captured</p>
             </div>
 
             {/* Filter Input */}
@@ -287,104 +288,102 @@ function LiveAuditPage() {
                 placeholder="Search payload..."
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                className="rounded-xl border border-white/10 bg-black/40 px-3 py-1.5 pl-8 text-xs text-white placeholder-white/30 focus:border-blue-500 focus:outline-none w-48"
+                className="rounded-full border border-zinc-200/80 bg-zinc-50 px-3.5 py-1.5 pl-8 text-xs text-zinc-900 placeholder-zinc-400 focus:border-zinc-800 focus:outline-none w-52"
               />
-              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-white/40" />
+              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-zinc-400" />
             </div>
           </div>
 
           {/* Feed List */}
           <div className="h-[480px] overflow-y-auto space-y-2 pr-1 font-mono text-xs">
             {filteredFeed.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center text-white/40">
-                <Terminal className="h-8 w-8 mb-2 opacity-50" />
-                <span>Waiting for telemetry stream...</span>
+              <div className="flex flex-col items-center justify-center h-full text-center text-zinc-400">
+                <Terminal className="h-8 w-8 mb-2 opacity-40" />
+                <span>Simulated stream initialized • Waiting for evaluations...</span>
               </div>
             ) : (
               filteredFeed.map((entry, idx) => (
                 <div
                   key={idx}
-                  className="rounded-xl border border-white/5 bg-white/[0.02] p-3 flex items-start justify-between gap-4"
+                  className="rounded-xl border border-zinc-100 bg-zinc-50/60 p-3.5 flex items-start justify-between gap-4"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                           entry.sev === "CRITICAL"
-                            ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                            ? "bg-rose-100 text-rose-700"
                             : entry.sev === "HIGH"
-                              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                              : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-emerald-100 text-emerald-700"
                         }`}
                       >
                         {entry.sev}
                       </span>
-                      <span className="text-white/60 font-sans text-xs">{entry.category}</span>
+                      <span className="text-zinc-600 font-sans text-xs font-semibold">
+                        {entry.category}
+                      </span>
                     </div>
-                    <p className="text-white/80 line-clamp-2 text-[11px] font-mono">
+                    <p className="text-zinc-800 line-clamp-2 text-[11px] font-mono">
                       {entry.payload}
                     </p>
                   </div>
-                  <span className="text-[10px] text-white/30 shrink-0">{entry.ts}</span>
+                  <span className="text-[10px] text-zinc-400 shrink-0 font-mono">{entry.ts}</span>
                 </div>
               ))
             )}
           </div>
         </div>
 
-        {/* Right: Metrics & Donut */}
+        {/* Right: Metrics & Risk Breakdown */}
         <div className="lg:col-span-4 space-y-6">
           {/* Resilience Stat */}
-          <div className="rounded-2xl border border-white/5 bg-[#090b10] p-6 space-y-4">
-            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider">
-              Resilience Score
+          <div className="rounded-[2rem] bg-white border border-zinc-200/70 p-7 shadow-[0_4px_20px_rgb(0,0,0,0.02)] space-y-4">
+            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+              Fleet Resilience Score
             </h3>
-            <div className="text-4xl font-light font-mono text-emerald-400">{resilience}%</div>
-            <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
+            <div className="text-4xl font-extrabold font-mono text-emerald-600">{resilience}%</div>
+            <div className="h-2 w-full rounded-full bg-zinc-100 overflow-hidden">
               <div
-                className="h-full bg-emerald-400 rounded-full transition-all duration-500"
+                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                 style={{ width: `${resilience}%` }}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-2 border-t border-white/5">
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-2 border-t border-zinc-100">
               <div>
-                <span className="text-white/40 block text-[10px]">SAFE CALLS</span>
-                <span className="text-emerald-400 font-semibold">{chartData.passing}</span>
+                <span className="text-zinc-400 block text-[10px]">SAFE CALLS</span>
+                <span className="text-emerald-600 font-bold">{chartData.passing}</span>
               </div>
               <div>
-                <span className="text-white/40 block text-[10px]">HARMFUL DETECTED</span>
-                <span className="text-red-400 font-semibold">{chartData.critical}</span>
+                <span className="text-zinc-400 block text-[10px]">THREATS DETECTED</span>
+                <span className="text-rose-500 font-bold">{chartData.critical}</span>
               </div>
             </div>
           </div>
 
           {/* Risk Breakdown */}
-          <div className="rounded-2xl border border-white/5 bg-[#090b10] p-6 space-y-4">
-            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider">
+          <div className="rounded-[2rem] bg-white border border-zinc-200/70 p-7 shadow-[0_4px_20px_rgb(0,0,0,0.02)] space-y-4">
+            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
               Threat Breakdown
             </h3>
             <div className="space-y-3">
-              {Object.entries(riskData).length === 0 ? (
-                <div className="text-xs text-white/40 italic">Awaiting evaluations...</div>
-              ) : (
-                Object.entries(riskData).map(([cat, data]) => {
-                  const pct = Math.round((data.harmful / (data.count || 1)) * 100);
-                  return (
-                    <div key={cat} className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-white/70">{cat}</span>
-                        <span className="font-mono text-white/50">{pct}% risk</span>
-                      </div>
-                      <div className="h-1.5 w-full rounded-full bg-white/5 overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-amber-400 transition-all duration-300"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+              {Object.entries(riskData).map(([cat, data]) => {
+                const pct = Math.round((data.harmful / (data.count || 1)) * 100);
+                return (
+                  <div key={cat} className="space-y-1">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-zinc-700">{cat}</span>
+                      <span className="font-mono text-zinc-400">{pct}% risk</span>
                     </div>
-                  );
-                })
-              )}
+                    <div className="h-1.5 w-full rounded-full bg-zinc-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-amber-400 transition-all duration-300"
+                        style={{ width: `${Math.max(pct, 5)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

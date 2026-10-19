@@ -8,8 +8,8 @@ import { api } from "@/lib/api";
 export const Route = createFileRoute("/app/profile")({
   head: () => ({
     meta: [
-      { title: "CENTINELA — CISO Security Profile" },
-      { name: "description", content: "Manage your CENTINELA profile and audit history." },
+      { title: "Centinela — Profile & Settings" },
+      { name: "description", content: "Manage your Centinela workspace profile and credentials." },
     ],
   }),
   component: ProfilePage,
@@ -24,11 +24,11 @@ type Profile = {
 };
 
 const INITIAL: Profile = {
-  fullName: "Sarah Chen",
-  organization: "Northwind Health",
-  role: "CISO",
-  email: "sarah.chen@northwind.health",
-  bio: "Chief Information Security Officer leading adversarial AI safety and automated LLM red-teaming audits.",
+  fullName: "Ayush Kumar",
+  organization: "Centinela Platform",
+  role: "Lead Security Evaluator",
+  email: "ayush47brohaiking@gmail.com",
+  bio: "Lead Evaluator overseeing automated agentic AI red teaming, policy enforcement and compliance certificates.",
 };
 
 function ProfilePage() {
@@ -73,126 +73,138 @@ function ProfilePage() {
   });
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-            CISO Workspace &amp; Credentials
-          </h1>
-          <p className="mt-1 text-xs text-white/50">
-            Cryptographic identity, organizational governance profile, and audit certification
-            signature keys.
-          </p>
-        </div>
-
-        <div>
-          {!editing ? (
-            <button
-              onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-white hover:bg-white/[0.08] transition-colors"
-            >
-              <Edit3 className="h-3.5 w-3.5 text-white/60" />
-              <span>Edit Profile</span>
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setEditing(false)}
-                className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-white/60 hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => saveMutation.mutate(draft)}
-                disabled={saveMutation.isPending}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-md shadow-blue-600/30"
-              >
-                <Save className="h-3.5 w-3.5" />
-                <span>{saveMutation.isPending ? "Saving..." : "Save Changes"}</span>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
+    <div className="space-y-6 max-w-4xl mx-auto">
       {/* Main Profile Card */}
-      <div className="rounded-2xl border border-white/5 bg-[#090b10] p-6 space-y-6">
-        <div className="flex items-center gap-4 pb-6 border-b border-white/5">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-xl font-bold text-white shadow-lg shadow-blue-600/20">
-            {profile.fullName.slice(0, 2).toUpperCase()}
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-white">{profile.fullName}</h2>
-            <p className="text-xs text-white/50">
-              {profile.role} • {profile.organization}
-            </p>
-            <div className="mt-1.5 flex items-center gap-2 font-mono text-[11px] text-emerald-400">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              <span>Authorized Security Lead</span>
+      <div className="rounded-[2rem] bg-white border border-zinc-200/70 p-8 sm:p-10 shadow-[0_4px_25px_rgb(0,0,0,0.02)] space-y-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-100 pb-6">
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 rounded-full bg-gradient-to-tr from-purple-500 via-pink-500 to-amber-400 flex items-center justify-center text-white text-2xl font-bold shadow-md">
+              {draft.fullName.charAt(0)}
             </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900">
+                {draft.fullName}
+              </h1>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                {draft.role} • {draft.organization}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            {!editing ? (
+              <button
+                onClick={() => setEditing(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-zinc-200/80 bg-white hover:bg-zinc-50 px-5 py-2 text-xs font-semibold text-zinc-700 shadow-2xs transition-colors"
+              >
+                <Edit3 className="h-3.5 w-3.5 text-zinc-500" />
+                <span>Edit Profile</span>
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditing(false)}
+                  className="rounded-full border border-zinc-200/80 bg-white px-4 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => saveMutation.mutate(draft)}
+                  disabled={saveMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 hover:bg-black text-white px-5 py-2 text-xs font-semibold shadow-2xs"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  <span>{saveMutation.isPending ? "Saving..." : "Save"}</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Form Fields */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-white/60 mb-1">Full Name</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+              Full Name
+            </label>
             <input
               type="text"
               disabled={!editing}
               value={draft.fullName}
               onChange={(e) => setDraft({ ...draft, fullName: e.target.value })}
-              className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs text-white disabled:opacity-60 focus:border-blue-500 focus:outline-none"
+              className="w-full rounded-2xl border border-zinc-200/80 bg-zinc-50/50 px-4 py-2.5 text-xs font-semibold text-zinc-900 disabled:opacity-80 focus:border-zinc-800 focus:outline-none"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-white/60 mb-1">Organization</label>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+              Email Address
+            </label>
+            <input
+              type="email"
+              disabled={!editing}
+              value={draft.email}
+              onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+              className="w-full rounded-2xl border border-zinc-200/80 bg-zinc-50/50 px-4 py-2.5 text-xs font-semibold text-zinc-900 disabled:opacity-80 focus:border-zinc-800 focus:outline-none"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+              Organization
+            </label>
             <input
               type="text"
               disabled={!editing}
               value={draft.organization}
               onChange={(e) => setDraft({ ...draft, organization: e.target.value })}
-              className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs text-white disabled:opacity-60 focus:border-blue-500 focus:outline-none"
+              className="w-full rounded-2xl border border-zinc-200/80 bg-zinc-50/50 px-4 py-2.5 text-xs font-semibold text-zinc-900 disabled:opacity-80 focus:border-zinc-800 focus:outline-none"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-white/60 mb-1">
-              Security Role / Title
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+              Role / Designation
             </label>
             <input
               type="text"
               disabled={!editing}
               value={draft.role}
               onChange={(e) => setDraft({ ...draft, role: e.target.value })}
-              className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs text-white disabled:opacity-60 focus:border-blue-500 focus:outline-none"
+              className="w-full rounded-2xl border border-zinc-200/80 bg-zinc-50/50 px-4 py-2.5 text-xs font-semibold text-zinc-900 disabled:opacity-80 focus:border-zinc-800 focus:outline-none"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-white/60 mb-1">Email Address</label>
-            <input
-              type="email"
-              disabled={!editing}
-              value={draft.email}
-              onChange={(e) => setDraft({ ...draft, email: e.target.value })}
-              className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs text-white disabled:opacity-60 focus:border-blue-500 focus:outline-none"
-            />
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-medium text-white/60 mb-1">
-              Bio / Security Mandate
+          <div className="sm:col-span-2 space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+              Bio &amp; Scope
             </label>
             <textarea
               rows={3}
               disabled={!editing}
               value={draft.bio}
               onChange={(e) => setDraft({ ...draft, bio: e.target.value })}
-              className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs text-white disabled:opacity-60 focus:border-blue-500 focus:outline-none"
+              className="w-full rounded-2xl border border-zinc-200/80 bg-zinc-50/50 px-4 py-2.5 text-xs text-zinc-800 disabled:opacity-80 focus:border-zinc-800 focus:outline-none leading-relaxed"
             />
+          </div>
+        </div>
+
+        {/* Security Credentials Card */}
+        <div className="rounded-2xl border border-zinc-200/70 bg-zinc-50/40 p-5 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-zinc-800">
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            <span>Cryptographic Audit Key</span>
+          </div>
+          <p className="text-xs text-zinc-500">
+            Audit certificates issued under your authority are signed using Ed25519 asymmetric
+            cryptography.
+          </p>
+          <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-zinc-200/80 text-xs font-mono text-zinc-700">
+            <span className="truncate">ed25519_pk_0x98f4...b7c2</span>
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+              ACTIVE
+            </span>
           </div>
         </div>
       </div>

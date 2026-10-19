@@ -7,10 +7,12 @@ export function Footer() {
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <div className="flex h-6 w-6 items-center justify-center rounded bg-blue-600 text-white">
+            <div className="flex h-6 w-6 items-center justify-center rounded bg-white/10 border border-white/20 text-white">
               <Shield className="h-3.5 w-3.5" />
             </div>
-            <span className="font-bold text-white tracking-tight font-mono">CENTINELA</span>
+            <span className="font-semibold text-white tracking-[0.2em] font-mono text-xs">
+              CENTINELA
+            </span>
           </div>
           <p className="text-sm text-white/50 font-light">
             Forensically auditable AI safety validation &amp; control plane.

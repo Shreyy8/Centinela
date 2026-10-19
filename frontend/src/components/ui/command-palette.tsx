@@ -85,7 +85,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
             onSelect={() => runCommand(() => navigate({ to: appRoute("config") as any }))}
             className="cursor-pointer"
           >
-            <Sliders className="mr-2 h-4 w-4 text-blue-400" />
+            <Sliders className="mr-2 h-4 w-4 text-white/70" />
             <span>Configure Audit</span>
             <CommandShortcut>G C</CommandShortcut>
           </CommandItem>
@@ -94,7 +94,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
             onSelect={() => runCommand(() => navigate({ to: appRoute("audit") as any }))}
             className="cursor-pointer"
           >
-            <Shield className="mr-2 h-4 w-4 text-emerald-400" />
+            <Shield className="mr-2 h-4 w-4 text-white/70" />
             <span>Live Audit Telemetry</span>
             <CommandShortcut>G A</CommandShortcut>
           </CommandItem>
@@ -103,7 +103,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
             onSelect={() => runCommand(() => navigate({ to: appRoute("results") as any }))}
             className="cursor-pointer"
           >
-            <FileCheck2 className="mr-2 h-4 w-4 text-amber-400" />
+            <FileCheck2 className="mr-2 h-4 w-4 text-white/70" />
             <span>Certification & Results</span>
             <CommandShortcut>G R</CommandShortcut>
           </CommandItem>
@@ -112,7 +112,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
             onSelect={() => runCommand(() => navigate({ to: appRoute("profile") as any }))}
             className="cursor-pointer"
           >
-            <User className="mr-2 h-4 w-4 text-violet-400" />
+            <User className="mr-2 h-4 w-4 text-white/70" />
             <span>CISO Profile & Keys</span>
             <CommandShortcut>G P</CommandShortcut>
           </CommandItem>
@@ -132,12 +132,12 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
             }
             className="cursor-pointer"
           >
-            <Play className="mr-2 h-4 w-4 text-emerald-400" />
+            <Play className="mr-2 h-4 w-4 text-white/70" />
             <span>Open Default Audit Drill</span>
           </CommandItem>
 
           <CommandItem onSelect={() => runCommand(handleToggleTheme)} className="cursor-pointer">
-            <SunMoon className="mr-2 h-4 w-4 text-amber-300" />
+            <SunMoon className="mr-2 h-4 w-4 text-white/70" />
             <span>Toggle Dark / Light Theme</span>
           </CommandItem>
 

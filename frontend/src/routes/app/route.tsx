@@ -2,25 +2,25 @@ import { createFileRoute, Outlet, Link, useRouterState, useNavigate } from "@tan
 import * as React from "react";
 import {
   LayoutDashboard,
-  Sliders,
+  Cpu,
   Shield,
-  FileCheck2,
+  Swords,
   User,
-  Home,
-  Menu,
-  ChevronLeft,
-  ChevronRight,
+  Database,
+  Tag,
   Search,
   Bell,
   Sparkles,
-  Play,
-  Lock,
-  Building2,
+  ChevronLeft,
+  ChevronRight,
   ChevronsUpDown,
+  HardDrive,
+  LogOut,
+  HelpCircle,
+  Menu,
 } from "lucide-react";
 import { appRoute, marketingUrl } from "@/config/routes";
 import { CommandPalette } from "@/components/ui/command-palette";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { IS_DEMO_MODE } from "@/lib/api";
 
 export const Route = createFileRoute("/app")({
@@ -29,10 +29,12 @@ export const Route = createFileRoute("/app")({
 
 const NAV_ITEMS = [
   { to: appRoute("dashboard"), label: "Dashboard", icon: LayoutDashboard },
-  { to: appRoute("config"), label: "Configure Audit", icon: Sliders },
-  { to: appRoute("audit"), label: "Live Telemetry", icon: Shield },
-  { to: appRoute("results"), label: "Certificates", icon: FileCheck2 },
-  { to: appRoute("profile"), label: "CISO Profile", icon: User },
+  { to: appRoute("config"), label: "Models", icon: Cpu },
+  { to: appRoute("results"), label: "Security", icon: Shield },
+  { to: appRoute("audit"), label: "Red Team", icon: Swords },
+  { to: appRoute("profile"), label: "Profile", icon: User },
+  { to: "#datasets", label: "Datasets", icon: Database },
+  { to: "#pricing", label: "Pricing", icon: Tag, badge: "SOON" },
 ] as const;
 
 function AppLayout() {
@@ -40,16 +42,20 @@ function AppLayout() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = React.useState(false);
   const [commandOpen, setCommandOpen] = React.useState(false);
-  const [userEmail, setUserEmail] = React.useState("sarah.chen@northwind.health");
+  const [userName, setUserName] = React.useState("Ayush Kumar");
+  const [userEmail, setUserEmail] = React.useState("ayush47brohaiking@gmail.com");
 
   // Check auth
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("token");
     const email = localStorage.getItem("user_email");
-    if (email) setUserEmail(email);
+    if (email) {
+      setUserEmail(email);
+      setUserName(email.split("@")[0].replace(/[._-]/g, " "));
+    }
 
-    // Auth guard for protected routes (except login & register)
+    // Auth guard for protected routes
     if (
       !IS_DEMO_MODE &&
       !token &&
@@ -63,199 +69,247 @@ function AppLayout() {
     }
   }, [pathname, navigate]);
 
-  // Is auth screen (login or register)? If so, render without sidebar/topbar
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user_email");
+    navigate({ to: appRoute("login") as any });
+  };
+
+  // Auth screen layout
   const isAuthScreen = pathname === appRoute("login") || pathname === appRoute("register");
 
   if (isAuthScreen) {
     return (
-      <div className="min-h-screen bg-[#050505] text-[#f1f5f9]">
+      <div className="min-h-screen bg-[#edf2f7] text-zinc-900 font-sans relative">
         <Outlet />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-[#f1f5f9] flex">
-      {/* 1. COLLAPSIBLE SIDEBAR */}
+    <div className="min-h-screen bg-[#edf2f7] text-zinc-900 font-sans relative overflow-x-hidden antialiased">
+      {/* Ethereal Ambient Canvas Gradients */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute -top-32 -left-32 w-[650px] h-[650px] rounded-full bg-blue-100/50 blur-[130px]" />
+        <div className="absolute top-1/4 -right-32 w-[600px] h-[600px] rounded-full bg-purple-100/50 blur-[140px]" />
+        <div className="absolute -bottom-32 left-1/3 w-[650px] h-[650px] rounded-full bg-indigo-50/60 blur-[130px]" />
+      </div>
+
+      {/* 1. FLOATING DETACHED SIDEBAR */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-white/5 bg-[#090b10] transition-all duration-300 ${
-          collapsed ? "w-18" : "w-64"
+        className={`fixed top-4 bottom-4 left-4 z-40 flex flex-col justify-between rounded-[2rem] bg-white border border-zinc-200/70 shadow-[0_10px_35px_-5px_rgba(0,0,0,0.04),0_2px_8px_rgba(0,0,0,0.02)] transition-all duration-300 p-5 ${
+          collapsed ? "w-20" : "w-64"
         }`}
       >
-        {/* Workspace Switcher / Brand Header */}
-        <div className="flex h-16 items-center justify-between border-b border-white/5 px-4">
-          {!collapsed ? (
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-md shadow-blue-600/30">
-                <Shield className="h-4 w-4" />
-              </div>
-              <div className="flex flex-col truncate">
-                <span className="font-mono text-sm font-bold tracking-tight text-white truncate">
-                  CENTINELA
-                </span>
-                <span className="text-[10px] font-medium text-emerald-400 truncate">
-                  ● AP-SOUTH-1 GATEWAY
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
-              <Shield className="h-4 w-4" />
-            </div>
-          )}
+        {/* Top: Brand Heading */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between px-1">
+            <Link to={appRoute("dashboard")} className="flex items-center gap-2 overflow-hidden">
+              {!collapsed ? (
+                <span className="text-2xl font-bold tracking-tight text-zinc-900">Centinela</span>
+              ) : (
+                <span className="text-xl font-bold tracking-tight text-zinc-900">C</span>
+              )}
+            </Link>
 
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="hidden lg:flex h-6 w-6 items-center justify-center rounded-md text-white/40 hover:bg-white/[0.04] hover:text-white"
-          >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </button>
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="hidden lg:flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+            >
+              {collapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+
+          {/* Navigation Items */}
+          <nav className="space-y-1">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isExternal = item.to.startsWith("#");
+              const active =
+                !isExternal &&
+                (pathname === item.to ||
+                  (item.to === "/app/dashboard" && pathname === "/app") ||
+                  (item.to === "/app/config" && pathname.startsWith("/app/config")) ||
+                  (item.to === "/app/results" && pathname.startsWith("/app/results")) ||
+                  (item.to === "/app/audit" && pathname.startsWith("/app/audit")));
+
+              const content = (
+                <div
+                  className={`group relative flex items-center gap-3.5 rounded-xl px-3.5 py-2.5 text-xs transition-all ${
+                    active
+                      ? "bg-zinc-100/90 text-zinc-900 font-medium"
+                      : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50/80 font-normal"
+                  } ${collapsed ? "justify-center px-0" : ""}`}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <Icon
+                    className={`h-4 w-4 shrink-0 ${
+                      active ? "text-zinc-900" : "text-zinc-400 group-hover:text-zinc-700"
+                    }`}
+                  />
+                  {!collapsed && <span className="truncate">{item.label}</span>}
+
+                  {/* Active purple indicator dot */}
+                  {active && !collapsed && (
+                    <span className="ml-auto h-1.5 w-1.5 rounded-full bg-purple-600 shadow-[0_0_8px_rgba(147,51,234,0.6)]" />
+                  )}
+
+                  {/* Soon badge */}
+                  {"badge" in item && item.badge && !collapsed && (
+                    <span className="ml-auto rounded-full bg-purple-100 px-2 py-0.5 text-[9px] font-semibold text-purple-700 uppercase tracking-wider">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
+              );
+
+              if (isExternal) {
+                return (
+                  <a key={item.label} href={item.to} className="block">
+                    {content}
+                  </a>
+                );
+              }
+
+              return (
+                <Link key={item.to} to={item.to} className="block">
+                  {content}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* Workspace Chip */}
-        {!collapsed && (
-          <div className="mx-3 my-3 flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-xs">
-            <div className="flex items-center gap-2 truncate">
-              <div className="flex h-6 w-6 items-center justify-center rounded bg-blue-500/10 text-blue-400">
-                <Building2 className="h-3.5 w-3.5" />
-              </div>
-              <span className="font-medium text-white/90 truncate">Northwind Health</span>
-            </div>
-            <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-mono text-white/40">
-              PROD
-            </span>
-          </div>
-        )}
-
-        {/* Navigation list */}
-        <nav className="flex-1 space-y-1.5 px-3 py-4">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const active =
-              pathname === item.to || (item.to === "/app/dashboard" && pathname === "/app");
-
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={`group relative flex items-center gap-3.5 rounded-xl px-3 py-2.5 text-xs font-medium transition-all ${
-                  active
-                    ? "bg-blue-600/15 text-blue-400 font-semibold border border-blue-500/30 shadow-sm shadow-blue-500/10"
-                    : "text-white/60 hover:bg-white/[0.03] hover:text-white"
-                } ${collapsed ? "justify-center px-0" : ""}`}
-                title={collapsed ? item.label : undefined}
-              >
-                <Icon
-                  className={`h-4 w-4 shrink-0 ${active ? "text-blue-400" : "text-white/40 group-hover:text-white/80"}`}
-                />
-                {!collapsed && <span>{item.label}</span>}
-                {active && !collapsed && (
-                  <span className="absolute right-2.5 h-1.5 w-1.5 rounded-full bg-blue-400" />
-                )}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Bottom actions & user profile */}
-        <div className="border-t border-white/5 p-3 space-y-2">
-          {/* Quick command palette trigger */}
-          <button
-            onClick={() => setCommandOpen(true)}
-            className={`w-full flex items-center gap-2.5 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2 text-xs text-white/50 hover:bg-white/[0.05] hover:text-white transition-colors ${
-              collapsed ? "justify-center px-0" : "justify-between"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Search className="h-3.5 w-3.5" />
-              {!collapsed && <span>Command Menu</span>}
-            </div>
-            {!collapsed && (
-              <kbd className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-mono text-white/60">
-                ⌘K
-              </kbd>
-            )}
-          </button>
-
-          {/* Return to marketing link */}
-          <a
-            href={marketingUrl("/")}
-            className={`flex items-center gap-3 rounded-xl px-3 py-2 text-xs text-white/50 hover:bg-white/[0.03] hover:text-white transition-colors ${
-              collapsed ? "justify-center px-0" : ""
-            }`}
-            title={collapsed ? "Marketing Home" : undefined}
-          >
-            <Home className="h-4 w-4 shrink-0 text-white/40" />
-            {!collapsed && <span>Marketing Home</span>}
-          </a>
-
-          {/* User info */}
+        {/* Bottom Section: Workspace, Storage, Profile */}
+        <div className="space-y-4 pt-4">
+          {/* Workspace Switcher */}
           {!collapsed && (
-            <div className="flex items-center gap-2.5 rounded-xl border border-white/5 bg-white/[0.02] p-2">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-[11px] font-bold text-white">
-                {userEmail.slice(0, 2).toUpperCase()}
+            <div className="rounded-2xl border border-zinc-200/70 bg-zinc-50/60 p-3 flex items-center justify-between text-left">
+              <div className="truncate">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                  Workspace
+                </div>
+                <div className="text-xs font-semibold text-zinc-900 truncate">
+                  Centinela Platform
+                </div>
+                <div className="text-[10px] text-zinc-500 truncate">Enterprise • AI Security</div>
               </div>
-              <div className="flex flex-col truncate text-[11px]">
-                <span className="font-medium text-white truncate">{userEmail}</span>
-                <span className="text-white/40 text-[10px]">CISO • Admin</span>
+              <ChevronsUpDown className="h-4 w-4 text-zinc-400 shrink-0" />
+            </div>
+          )}
+
+          {/* Storage Meter */}
+          {!collapsed && (
+            <div className="rounded-2xl border border-zinc-200/50 bg-zinc-50/40 p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs text-zinc-600">
+                <div className="flex items-center gap-1.5">
+                  <HardDrive className="h-3.5 w-3.5 text-zinc-400" />
+                  <span className="text-[11px] font-medium text-zinc-700">Storage</span>
+                </div>
+                <span className="text-[10px] text-zinc-400 font-mono">42%</span>
+              </div>
+              <div className="h-1.5 w-full bg-zinc-200/80 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full w-[42%]" />
               </div>
             </div>
           )}
+
+          {/* User Profile Pill */}
+          <div className="flex items-center justify-between rounded-2xl border border-zinc-200/70 bg-white p-2 shadow-sm">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-purple-500 via-pink-500 to-amber-400 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm">
+                {userName.charAt(0).toUpperCase()}
+              </div>
+              {!collapsed && (
+                <div className="flex flex-col truncate">
+                  <span className="text-xs font-semibold text-zinc-900 truncate">{userName}</span>
+                  <span className="text-[10px] text-zinc-400 truncate font-mono">{userEmail}</span>
+                </div>
+              )}
+            </div>
+
+            {!collapsed && (
+              <button
+                onClick={handleLogout}
+                title="Sign out"
+                className="h-7 w-7 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 flex items-center justify-center transition-colors shrink-0"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </aside>
 
-      {/* 2. MAIN APP CONTENT WRAPPER */}
+      {/* 2. MAIN APP CONTENT CONTAINER */}
       <div
         className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
-          collapsed ? "pl-18" : "pl-64"
-        }`}
+          collapsed ? "pl-28" : "pl-72"
+        } pr-6 py-4 relative z-10`}
       >
-        {/* TOPBAR */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/5 bg-[#050505]/80 px-6 backdrop-blur-xl">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setCollapsed(!collapsed)}
-              className="lg:hidden p-1.5 rounded-lg text-white/60 hover:bg-white/5 hover:text-white"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
+        {/* FLOATING TOPBAR */}
+        <header className="rounded-2xl bg-white/95 backdrop-blur-md border border-zinc-200/70 shadow-[0_4px_20px_rgb(0,0,0,0.02)] px-6 py-3 flex items-center justify-between mb-6">
+          {/* Global Search with ⌘K */}
+          <button
+            onClick={() => setCommandOpen(true)}
+            className="flex items-center gap-3 text-zinc-400 hover:text-zinc-700 text-xs w-full max-w-md transition-colors"
+          >
+            <Search className="h-4 w-4 shrink-0 text-zinc-400" />
+            <span className="truncate">Search models, tests, findings... (⌘K)</span>
+            <kbd className="ml-auto rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] font-mono text-zinc-500 shadow-2xs">
+              ⌘K
+            </kbd>
+          </button>
 
-            {/* Session status indicator */}
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-xs font-mono text-white/70">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>ACTIVE SESSION:</span>
-              <span className="text-blue-400">AX-772</span>
-            </div>
-          </div>
-
+          {/* Right Header Actions */}
           <div className="flex items-center gap-3">
+            {/* Assistant Button */}
             <button
               onClick={() => setCommandOpen(true)}
-              className="hidden sm:flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-white/50 hover:bg-white/5 hover:text-white transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 hover:bg-purple-100/80 border border-purple-200/70 px-4 py-1.5 text-xs font-semibold text-purple-700 shadow-2xs transition-colors"
             >
-              <Search className="h-3.5 w-3.5" />
-              <span>Quick Search...</span>
-              <kbd className="ml-2 rounded bg-white/10 px-1 py-0.5 text-[10px] font-mono">⌘K</kbd>
+              <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+              <span>Assistant</span>
             </button>
 
-            <ThemeToggle />
-
-            <Link
-              to={appRoute("config")}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md shadow-blue-600/30 hover:bg-blue-500 active:scale-95 transition-all"
+            {/* Notification Bell */}
+            <button
+              aria-label="Notifications"
+              className="relative h-9 w-9 rounded-full bg-white border border-zinc-200/80 hover:bg-zinc-50 flex items-center justify-center text-zinc-600 shadow-2xs transition-colors"
             >
-              <Play className="h-3 w-3" />
-              <span className="hidden sm:inline">New Audit</span>
+              <Bell className="h-4 w-4" />
+              <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-purple-600" />
+            </button>
+
+            {/* User Avatar Circle */}
+            <Link
+              to={appRoute("profile")}
+              className="h-9 w-9 rounded-full overflow-hidden border border-zinc-200/80 bg-gradient-to-tr from-purple-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-2xs hover:scale-105 transition-transform"
+            >
+              {userName.charAt(0).toUpperCase()}
             </Link>
           </div>
         </header>
 
-        {/* OUTLET */}
-        <main className="flex-1 p-6 md:p-8 relative">
+        {/* MAIN OUTLET CANVAS */}
+        <main className="flex-1 pb-16">
           <Outlet />
         </main>
       </div>
+
+      {/* Floating Bottom-Right Help Button */}
+      <button
+        aria-label="Help & Documentation"
+        onClick={() => window.open("https://centinela.ai/docs", "_blank")}
+        className="fixed bottom-6 right-6 z-40 h-9 w-9 rounded-full bg-white border border-zinc-200/80 shadow-md flex items-center justify-center text-xs font-semibold text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 hover:scale-105 transition-all"
+      >
+        <HelpCircle className="h-4 w-4 text-zinc-500" />
+      </button>
 
       {/* Global Command Palette */}
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />

@@ -3,16 +3,15 @@ import * as React from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Sliders,
-  Play,
-  Key,
-  Shield,
-  Clock,
+  ArrowRight,
+  Plus,
+  X,
+  ChevronDown,
   Sparkles,
-  CheckCircle2,
-  Building,
-  User,
   Zap,
+  Shield,
+  Layers,
+  Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { appRoute } from "@/config/routes";
@@ -20,111 +19,229 @@ import { appRoute } from "@/config/routes";
 export const Route = createFileRoute("/app/config")({
   head: () => ({
     meta: [
-      { title: "CENTINELA — Configure Audit" },
+      { title: "Centinela — Models & Attack Scenarios" },
       {
         name: "description",
         content:
-          "Specify target parameters and adversarial constraints for the AI security assessment.",
+          "Configure target models, attack surface, and execute automated adversarial drills.",
       },
     ],
   }),
   component: ConfigPage,
 });
 
-const PROVIDERS = ["OPENAI", "ANTHROPIC", "OLLAMA", "CUSTOM"] as const;
-const OLLAMA_DEFAULT_MODEL = "llama3";
-const PROVIDER_DEFAULTS: Record<(typeof PROVIDERS)[number], string> = {
-  OPENAI: "gpt-4-turbo-preview",
-  ANTHROPIC: "claude-3-opus-20240229",
-  OLLAMA: OLLAMA_DEFAULT_MODEL,
-  CUSTOM: "gpt-4-turbo-preview",
-};
+interface PresetScenario {
+  id: string;
+  name: string;
+  subtitle: string;
+  description: string;
+  duration: string;
+  resources: string;
+  bestFor: string;
+  models: string[];
+  attacks: string[];
+  badge?: string;
+}
 
-const DOMAINS = [
+const PRESET_SCENARIOS: PresetScenario[] = [
   {
-    id: "Healthcare",
-    name: "Healthcare",
-    tags: "HIPAA, PII, PHI",
-    desc: "Patient data extraction, medical advice & HIPAA boundaries",
+    id: "quick-demo",
+    name: "Quick Demo",
+    subtitle: "Small Models • Advanced Attacks",
+    description:
+      "Test advanced attacks on small models. Fast, good for verifying your setup works end-to-end.",
+    duration: "5 MIN",
+    resources: "~1GB",
+    bestFor: "Setup Verification",
+    models: ["GPT-2", "DistilGPT2"],
+    attacks: ["Jailbreak", "Prompt Injection", "Data Exfiltration", "Toxicity"],
   },
   {
-    id: "Finance",
-    name: "Finance",
-    tags: "PCI-DSS, AML",
-    desc: "Automated trading advice, transaction authorization & fraud bypass",
+    id: "medium",
+    name: "Medium",
+    subtitle: "GPT-Neo 1.3B • Expert Attacks",
+    description:
+      "Comprehensive probe of mid-sized foundational models against persistent jailbreaks and prompt extraction.",
+    duration: "15 MIN",
+    resources: "~4GB",
+    bestFor: "Staging Testing",
+    models: ["GPT-Neo-1.3B", "Llama-3-8B"],
+    attacks: ["Jailbreak", "Prompt Injection", "Data Exfiltration", "Toxicity", "Misinformation"],
   },
   {
-    id: "Legal",
-    name: "Legal",
-    tags: "GDPR, Compliance",
-    desc: "Contract liability advice, non-disclosure & legal privilege",
+    id: "large",
+    name: "Large",
+    subtitle: "Llama 2 7B • Expert Attacks",
+    description:
+      "High-depth multi-turn adversarial stress testing designed for frontier open-weights systems.",
+    duration: "30 MIN",
+    resources: "~8GB",
+    bestFor: "Enterprise Gate",
+    models: ["Llama-2-7B", "Mistral-7B-v0.3"],
+    attacks: [
+      "Jailbreak",
+      "Prompt Injection",
+      "Data Exfiltration",
+      "Toxicity",
+      "Misinformation",
+      "Bias & Fairness",
+    ],
   },
   {
-    id: "General",
-    name: "General",
-    tags: "Broad Toxicity",
-    desc: "DAN jailbreaks, developer mode override & prompt extraction",
+    id: "multi-model",
+    name: "Multi-Model Comparison",
+    subtitle: "Llama 7B + Mistral 7B • Expert Attacks",
+    description:
+      "Side-by-side benchmark comparing safety boundaries and refusal drift across model architectures.",
+    duration: "30 MIN",
+    resources: "~8GB",
+    bestFor: "Architecture Choice",
+    models: ["Llama-7B", "Mistral-7B"],
+    attacks: ["Jailbreak", "Prompt Injection", "Data Exfiltration", "Toxicity"],
   },
-] as const;
+  {
+    id: "comprehensive",
+    name: "Comprehensive",
+    subtitle: "3 Big Models • Expert Attacks",
+    description:
+      "Statutory compliance suite verifying EU AI Act Article 14 and HIPAA safeguards across three production models.",
+    duration: "45 MIN",
+    resources: "~16GB",
+    bestFor: "Statutory Compliance",
+    models: ["GPT-4-Turbo", "Claude-3-Opus", "Llama-3-70B"],
+    attacks: [
+      "Jailbreak",
+      "Prompt Injection",
+      "Data Exfiltration",
+      "Toxicity",
+      "Misinformation",
+      "Bias & Fairness",
+    ],
+  },
+  {
+    id: "max-stress",
+    name: "Maximum Stress Test",
+    subtitle: "4 Models • Expert Attacks",
+    description:
+      "Exhaustive red-team drill deploying genetic algorithm PAIR attacks and token perturbation matrices.",
+    duration: "60 MIN",
+    resources: "~32GB",
+    bestFor: "Pre-Release Certification",
+    models: ["GPT-4o", "Claude-3.5-Sonnet", "Mistral-Large", "Gemini-1.5-Pro"],
+    attacks: [
+      "Jailbreak",
+      "Prompt Injection",
+      "Data Exfiltration",
+      "Toxicity",
+      "Misinformation",
+      "Bias & Fairness",
+    ],
+  },
+  {
+    id: "huggingface",
+    name: "HuggingFace Model",
+    subtitle: "Upload your own HF model — Red-Team...",
+    description:
+      "Direct adapter connection to your custom fine-tuned weights or private Hugging Face checkpoint.",
+    duration: "VARIES",
+    resources: "Dynamic",
+    bestFor: "Custom Fine-tunes",
+    models: ["custom-org/hf-fine-tune-v1"],
+    attacks: ["Jailbreak", "Prompt Injection", "Data Exfiltration", "Toxicity"],
+    badge: "PRO",
+  },
+];
 
-const SEVERITIES = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+const ALL_ATTACKS = [
+  "Jailbreak",
+  "Prompt Injection",
+  "Data Exfiltration",
+  "Toxicity",
+  "Misinformation",
+  "Bias & Fairness",
+  "+ 4 More Attacks",
+];
 
 function ConfigPage() {
   const navigate = useNavigate();
-  const [provider, setProvider] = React.useState<(typeof PROVIDERS)[number]>("OPENAI");
-  const [domain, setDomain] = React.useState("Healthcare");
-  const [severity, setSeverity] = React.useState<(typeof SEVERITIES)[number]>("MEDIUM");
-  const [budget, setBudget] = React.useState(250);
-  const [modelName, setModelName] = React.useState("gpt-4-turbo-preview");
-  const [apiKey, setApiKey] = React.useState("");
-  const [systemPrompt, setSystemPrompt] = React.useState(
-    "You are a helpful assistant specialized in security research. Do not provide information that could be used to facilitate illegal activities or bypass security controls. Always maintain a professional and ethical stance.",
-  );
-  const [organization, setOrganization] = React.useState("Northwind Health");
-  const [auditor, setAuditor] = React.useState("Sarah Chen, CISO");
+  const [selectedScenarioId, setSelectedScenarioId] = React.useState("quick-demo");
+  const selectedScenario =
+    PRESET_SCENARIOS.find((s) => s.id === selectedScenarioId) || PRESET_SCENARIOS[0];
+
+  const [targetModels, setTargetModels] = React.useState<string[]>(selectedScenario.models);
+  const [selectedAttacks, setSelectedAttacks] = React.useState<string[]>(selectedScenario.attacks);
+  const [duration, setDuration] = React.useState(selectedScenario.duration);
+  const [resources, setResources] = React.useState(selectedScenario.resources);
+  const [bestFor, setBestFor] = React.useState(selectedScenario.bestFor);
+  const [isAddingModel, setIsAddingModel] = React.useState(false);
+  const [newModelInput, setNewModelInput] = React.useState("");
+
+  // When scenario changes, update fields
+  const handleSelectScenario = (sc: PresetScenario) => {
+    setSelectedScenarioId(sc.id);
+    setTargetModels(sc.models);
+    setSelectedAttacks(sc.attacks);
+    setDuration(sc.duration);
+    setResources(sc.resources);
+    setBestFor(sc.bestFor);
+  };
+
+  const toggleAttack = (attack: string) => {
+    if (selectedAttacks.includes(attack)) {
+      setSelectedAttacks(selectedAttacks.filter((a) => a !== attack));
+    } else {
+      setSelectedAttacks([...selectedAttacks, attack]);
+    }
+  };
+
+  const removeModel = (model: string) => {
+    setTargetModels(targetModels.filter((m) => m !== model));
+  };
+
+  const handleAddModel = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newModelInput.trim()) {
+      setTargetModels([...targetModels, newModelInput.trim()]);
+      setNewModelInput("");
+      setIsAddingModel(false);
+    }
+  };
 
   const startAuditMutation = useMutation({
     mutationFn: async () => {
       // 1. Settings persistence
       api
         .put("/config/settings", {
-          provider,
-          model: modelName,
-          domain,
-          severity,
-          budget,
-          system_prompt: systemPrompt,
-          organization,
-          auditor,
+          scenario: selectedScenario.name,
+          models: targetModels,
+          attacks: selectedAttacks,
+          duration,
+          resources,
+          best_for: bestFor,
         })
         .catch((err) => console.warn("Settings persistence bypassed:", err));
 
-      if (apiKey) {
-        api
-          .post("/config/api-key", { api_key: apiKey })
-          .catch((err) => console.warn("API key save bypassed:", err));
-      }
-
-      // 2. Launch drill with automatic fallback
+      // 2. Launch drill
       try {
         const drillResp = await api.post(
           "/drills/run",
           {
-            drill_name: `Audit-${Date.now()}`,
-            domain,
-            count: Math.max(10, Math.round(budget / 0.5)),
+            drill_name: `${selectedScenario.name}-${Date.now()}`,
+            models: targetModels,
+            attacks: selectedAttacks,
+            count: 50,
           },
           "http://localhost:8006",
         );
         return drillResp;
       } catch (err) {
         console.warn("Backend /drills/run fallback:", err);
-        const fallbackSessionId = `mock_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const fallbackSessionId = `bayora_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         return { session_id: fallbackSessionId };
       }
     },
     onSuccess: (data: { session_id: string }) => {
-      toast.success("Security audit launched successfully!");
+      toast.success("Attack test drill launched successfully!");
       navigate({
         to: appRoute("audit") as any,
         search: { session_id: data.session_id } as any,
@@ -136,227 +253,203 @@ function ConfigPage() {
   });
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto pb-28">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-          Configure Adversarial Security Audit
-        </h1>
-        <p className="mt-1 text-xs text-white/50">
-          Specify target parameters, compliance domains, and attack depth for automated red-teaming.
-        </p>
-      </div>
-
-      {/* Grid Settings */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Left Column: Target & Model Provider */}
-        <div className="space-y-6 lg:col-span-7">
-          {/* Section 1: Provider & Model */}
-          <div className="rounded-2xl border border-white/5 bg-[#090b10] p-6 space-y-5">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-400">
-              <Zap className="h-4 w-4" />
-              <span>Target Model &amp; Provider</span>
-            </div>
-
-            {/* Provider Tabs */}
-            <div className="flex flex-wrap gap-2">
-              {PROVIDERS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => {
-                    setProvider(p);
-                    setModelName(PROVIDER_DEFAULTS[p]);
-                  }}
-                  className={`rounded-xl px-4 py-2 text-xs font-medium transition-all ${
-                    provider === p
-                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                      : "bg-white/[0.03] text-white/60 hover:bg-white/[0.06] hover:text-white"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-
-            {/* Model Name Input */}
-            <div>
-              <label className="block text-xs font-medium text-white/70 mb-1.5">
-                Model Identifier
-              </label>
-              <input
-                type="text"
-                value={modelName}
-                onChange={(e) => setModelName(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-xs font-mono text-white placeholder-white/30 focus:border-blue-500 focus:outline-none"
-                placeholder="e.g. gpt-4-turbo-preview"
-              />
-            </div>
-
-            {/* API Key */}
-            <div>
-              <label className="block text-xs font-medium text-white/70 mb-1.5">
-                API Key (Optional for Local Ollama / Mock)
-              </label>
-              <div className="relative">
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-xs font-mono text-white placeholder-white/30 focus:border-blue-500 focus:outline-none pl-9"
-                  placeholder="sk-..."
-                />
-                <Key className="absolute left-3 top-3 h-3.5 w-3.5 text-white/40" />
-              </div>
-            </div>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Main Bayora Attack Scenarios Card */}
+      <div className="rounded-[2rem] bg-white border border-zinc-200/70 p-7 sm:p-9 shadow-[0_4px_25px_rgb(0,0,0,0.02)] min-h-[620px] flex flex-col lg:flex-row gap-8">
+        {/* Left Column: Preset Scenarios List */}
+        <div className="w-full lg:w-80 shrink-0 border-b lg:border-b-0 lg:border-r border-zinc-100 pb-6 lg:pb-0 lg:pr-6 space-y-4">
+          <div>
+            <span className="text-[11px] font-bold tracking-wider uppercase text-zinc-400">
+              Preset Scenarios
+            </span>
+            <p className="text-xs text-zinc-400 mt-0.5">Choose a preset or build custom.</p>
           </div>
 
-          {/* Section 2: Domain Matrix */}
-          <div className="rounded-2xl border border-white/5 bg-[#090b10] p-6 space-y-4">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-400">
-              <Shield className="h-4 w-4" />
-              <span>Target Compliance Domain</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {DOMAINS.map((d) => (
+          <div className="space-y-2">
+            {PRESET_SCENARIOS.map((sc) => {
+              const isSelected = sc.id === selectedScenarioId;
+              return (
                 <div
-                  key={d.id}
-                  onClick={() => setDomain(d.id)}
-                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                    domain === d.id
-                      ? "bg-blue-600/10 border-blue-500 text-white shadow-md shadow-blue-500/10"
-                      : "bg-white/[0.02] border-white/5 text-white/70 hover:bg-white/[0.04] hover:text-white"
+                  key={sc.id}
+                  onClick={() => handleSelectScenario(sc)}
+                  className={`relative p-3.5 rounded-2xl cursor-pointer transition-all ${
+                    isSelected ? "bg-zinc-100/90 shadow-2xs" : "hover:bg-zinc-50/80 text-zinc-600"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-xs">{d.name}</span>
-                    <span className="text-[10px] font-mono rounded bg-white/5 px-2 py-0.5 text-white/40">
-                      {d.tags}
+                  {/* Left accent bar if selected */}
+                  {isSelected && (
+                    <div className="absolute left-0 top-3.5 bottom-3.5 w-1 bg-zinc-900 rounded-r-full" />
+                  )}
+
+                  <div className="flex items-center justify-between gap-2 pl-2">
+                    <div className="truncate">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-zinc-900 truncate">{sc.name}</span>
+                        {sc.badge && (
+                          <span className="rounded-full bg-purple-100 px-1.5 py-0.2 text-[9px] font-bold text-purple-700">
+                            ✦ {sc.badge}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-zinc-400 truncate mt-0.5">{sc.subtitle}</p>
+                    </div>
+
+                    <span className="text-[10px] font-semibold text-zinc-600 shrink-0 font-mono">
+                      {sc.duration}
                     </span>
                   </div>
-                  <p className="mt-2 text-[11px] font-light leading-relaxed text-white/50">
-                    {d.desc}
-                  </p>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Right Column: Adversarial Budget & Constraints */}
-        <div className="space-y-6 lg:col-span-5">
-          {/* Adversarial Depth & Budget */}
-          <div className="rounded-2xl border border-white/5 bg-[#090b10] p-6 space-y-5">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-400">
-              <Sliders className="h-4 w-4" />
-              <span>Adversarial Depth</span>
+        {/* Right Column: Execution Settings & Launch */}
+        <div className="flex-1 space-y-8 flex flex-col justify-between">
+          <div className="space-y-7">
+            {/* Scenario Header */}
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900">
+                {selectedScenario.name}
+              </h2>
+              <p className="text-xs sm:text-sm font-medium text-zinc-500 mt-1">
+                {selectedScenario.subtitle}
+              </p>
+              <p className="text-xs text-zinc-400 mt-2 max-w-2xl leading-relaxed">
+                {selectedScenario.description}
+              </p>
             </div>
 
-            <div>
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="text-white/70">Attack Budget</span>
-                <span className="font-mono text-blue-400 font-semibold">{budget}K Tokens</span>
-              </div>
-              <input
-                type="range"
-                min={50}
-                max={1000}
-                step={25}
-                value={budget}
-                onChange={(e) => setBudget(Number(e.target.value))}
-                className="w-full cn-range"
-              />
-              <div className="mt-1 flex justify-between text-[10px] text-white/30 font-mono">
-                <span>50K (Quick)</span>
-                <span>500K (Standard)</span>
-                <span>1M (Exhaustive)</span>
-              </div>
-            </div>
+            {/* Target Models */}
+            <div className="space-y-2.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                Target Models
+              </span>
 
-            {/* Severity Threshold */}
-            <div>
-              <label className="block text-xs font-medium text-white/70 mb-2">
-                Minimum Threat Severity Flag
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {SEVERITIES.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setSeverity(s)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] font-mono font-medium transition-all ${
-                      severity === s
-                        ? "bg-blue-600 text-white"
-                        : "bg-white/[0.03] text-white/50 hover:bg-white/[0.06] hover:text-white"
-                    }`}
+              <div className="flex flex-wrap items-center gap-2">
+                {targetModels.map((m) => (
+                  <span
+                    key={m}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3.5 py-1.5 text-xs font-semibold text-zinc-800"
                   >
-                    {s}
-                  </button>
+                    <span>{m}</span>
+                    <button
+                      onClick={() => removeModel(m)}
+                      className="text-zinc-400 hover:text-zinc-700 rounded-full"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
                 ))}
+
+                {isAddingModel ? (
+                  <form onSubmit={handleAddModel} className="inline-flex items-center gap-1">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newModelInput}
+                      onChange={(e) => setNewModelInput(e.target.value)}
+                      placeholder="e.g. claude-3.5-sonnet"
+                      className="rounded-full border border-zinc-300 bg-white px-3 py-1 text-xs text-zinc-900 outline-none focus:border-zinc-800"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-full bg-zinc-900 px-2.5 py-1 text-[11px] text-white"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingModel(false)}
+                      className="text-xs text-zinc-400 hover:text-zinc-600 px-1"
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => setIsAddingModel(true)}
+                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-zinc-300 hover:border-zinc-500 px-3 py-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-800 transition-colors"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>Add Model</span>
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Organization & Auditor info */}
-            <div className="pt-2 border-t border-white/5 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-white/70 mb-1">Organization</label>
-                <input
-                  type="text"
-                  value={organization}
-                  onChange={(e) => setOrganization(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs text-white placeholder-white/30 focus:border-blue-500 focus:outline-none"
-                  placeholder="Organization name"
-                />
-              </div>
+            {/* Attack Surface */}
+            <div className="space-y-2.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                Attack Surface
+              </span>
 
-              <div>
-                <label className="block text-xs font-medium text-white/70 mb-1">Lead Auditor</label>
-                <input
-                  type="text"
-                  value={auditor}
-                  onChange={(e) => setAuditor(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs text-white placeholder-white/30 focus:border-blue-500 focus:outline-none"
-                  placeholder="Auditor Name & Credentials"
-                />
+              <div className="flex flex-wrap gap-2">
+                {ALL_ATTACKS.map((atk) => {
+                  const isActive = selectedAttacks.includes(atk);
+                  return (
+                    <button
+                      key={atk}
+                      type="button"
+                      onClick={() => toggleAttack(atk)}
+                      className={`rounded-full px-4 py-2 text-xs font-semibold transition-all ${
+                        isActive
+                          ? "bg-zinc-900 text-white shadow-2xs"
+                          : "bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-200/80"
+                      }`}
+                    >
+                      {atk}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Execution Settings Dropdowns */}
+            <div className="space-y-2.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                Execution Settings
+              </span>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Duration */}
+                <div className="inline-flex items-center gap-3 rounded-2xl border border-zinc-200/80 bg-zinc-50/60 px-4 py-2 text-xs">
+                  <span className="text-zinc-400 font-medium">Duration:</span>
+                  <span className="font-bold text-zinc-900">{duration}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
+                </div>
+
+                {/* Resources */}
+                <div className="inline-flex items-center gap-3 rounded-2xl border border-zinc-200/80 bg-zinc-50/60 px-4 py-2 text-xs">
+                  <span className="text-zinc-400 font-medium">Resources:</span>
+                  <span className="font-bold text-zinc-900">{resources}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
+                </div>
+
+                {/* Best For */}
+                <div className="inline-flex items-center gap-3 rounded-2xl border border-zinc-200/80 bg-zinc-50/60 px-4 py-2 text-xs">
+                  <span className="text-zinc-400 font-medium">Best For:</span>
+                  <span className="font-bold text-zinc-900">{bestFor}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* FLOATING STICKY EXECUTION FOOTER */}
-      <div className="fixed bottom-0 inset-x-0 z-30 flex h-20 items-center justify-between border-t border-white/10 bg-[#090b10]/95 px-8 backdrop-blur-xl lg:left-64">
-        <div className="flex items-center gap-8">
-          <div className="hidden sm:flex flex-col">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
-              Target
-            </span>
-            <span className="text-xs font-mono font-bold text-blue-400">
-              {modelName} ({domain})
-            </span>
-          </div>
-
-          <div className="hidden md:block h-6 w-px bg-white/10" />
-
-          <div className="hidden sm:flex flex-col">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
-              Estimated Runtime
-            </span>
-            <span className="text-xs font-mono text-amber-400">
-              ~{Math.max(2, Math.round(budget / 18))} Minutes
-            </span>
+          {/* Bottom Action CTA */}
+          <div className="pt-6 border-t border-zinc-100 flex items-center justify-end">
+            <button
+              onClick={() => startAuditMutation.mutate()}
+              disabled={startAuditMutation.isPending}
+              className="inline-flex items-center gap-2 rounded-full bg-zinc-900 hover:bg-black text-white px-8 py-3.5 text-xs font-semibold shadow-lg shadow-zinc-900/10 active:scale-95 transition-all disabled:opacity-50"
+            >
+              <span>
+                {startAuditMutation.isPending ? "Starting Drill..." : "Launch Attack Test"}
+              </span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
-
-        <button
-          onClick={() => startAuditMutation.mutate()}
-          disabled={startAuditMutation.isPending}
-          className="inline-flex items-center gap-2.5 rounded-xl bg-blue-600 px-6 py-3 text-xs font-semibold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
-        >
-          <Play className="h-4 w-4" />
-          <span>{startAuditMutation.isPending ? "Starting Audit..." : "Launch Audit"}</span>
-        </button>
       </div>
     </div>
   );
