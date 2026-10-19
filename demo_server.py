@@ -125,6 +125,39 @@ async def save_api_key(data: dict):
 async def get_api_key():
     return {"has_key": True, "key_preview": "sk-p...9aX2"}
 
+# Aliases for gateway sub-mounts (/api/auth/* and /api/config/*)
+@auth_app.post("/login")
+async def login_alias(data: dict):
+    return await login(data)
+
+@auth_app.post("/signup")
+async def signup_alias(data: dict):
+    return await signup(data)
+
+@auth_app.get("/profile")
+async def get_profile_alias():
+    return await get_profile()
+
+@auth_app.put("/profile")
+async def update_profile_alias(data: dict):
+    return await update_profile(data)
+
+@auth_app.get("/settings")
+async def get_settings_alias():
+    return await get_settings()
+
+@auth_app.put("/settings")
+async def save_settings_alias(data: dict):
+    return await save_settings(data)
+
+@auth_app.get("/api-key")
+async def get_api_key_alias():
+    return await get_api_key()
+
+@auth_app.post("/api-key")
+async def save_api_key_alias(data: dict):
+    return await save_api_key(data)
+
 # ==========================================
 # 2. BENCHMARK SERVICE (PORT 8006)
 # ==========================================
@@ -169,6 +202,18 @@ async def cancel_drill(session_id: str):
         RUNS_DB[session_id]["status"] = "cancelled"
     return {"status": "cancelled"}
 
+@bench_app.post("/run")
+async def run_drill_alias(req: DrillRequest):
+    return await run_drill(req)
+
+@bench_app.get("/{session_id}/status")
+async def get_drill_status_alias(session_id: str):
+    return await get_drill_status(session_id)
+
+@bench_app.post("/{session_id}/cancel")
+async def cancel_drill_alias(session_id: str):
+    return await cancel_drill(session_id)
+
 # ==========================================
 # 3. SESSION MANAGER (PORT 8000)
 # ==========================================
@@ -179,6 +224,10 @@ async def start_session():
     new_id = f"sess_{uuid.uuid4().hex[:8]}"
     return {"session_id": new_id, "session_key": "k8s_ephemeral_fernet_key_mock"}
 
+@session_app.post("/start")
+async def start_session_alias():
+    return await start_session()
+
 @session_app.get("/audit/verify/{session_id}")
 async def verify_audit(session_id: str):
     return {
@@ -187,6 +236,10 @@ async def verify_audit(session_id: str):
         "head_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "message": "SHA-256 Merkle hash chain cryptographically verified. Zero tampering detected."
     }
+
+@session_app.get("/verify/{session_id}")
+async def verify_audit_alias(session_id: str):
+    return await verify_audit(session_id)
 
 # ==========================================
 # 4. WEBSOCKET AUDIT GATEWAY (PORT 8011)
@@ -302,6 +355,7 @@ gateway_app.mount("/api/auth", auth_app)
 gateway_app.mount("/api/config", auth_app)
 gateway_app.mount("/api/drills", bench_app)
 gateway_app.mount("/api/session", session_app)
+gateway_app.mount("/api/audit", session_app)
 gateway_app.mount("/api", bench_app)
 
 @gateway_app.websocket("/ws/{session_id}")

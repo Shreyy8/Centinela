@@ -32,12 +32,7 @@ export function Preloader({ children }: { children: React.ReactNode }) {
         { width: "100%", duration: 2, ease: "power1.inOut" },
         "+=0.2",
       )
-      .fromTo(
-        textRef.current,
-        { opacity: 0 },
-        { opacity: 1, duration: 0.5 },
-        "<-1.6",
-      )
+      .fromTo(textRef.current, { opacity: 0 }, { opacity: 1, duration: 0.5 }, "<-1.6")
       .to(overlayRef.current, { opacity: 0, duration: 0.6, ease: "power2.in" })
       .to(
         contentRef.current,

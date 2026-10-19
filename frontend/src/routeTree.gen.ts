@@ -15,7 +15,16 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ConfigRouteImport } from './routes/config'
 import { Route as AuditRouteImport } from './routes/audit'
+import { Route as AppRouteRouteImport } from './routes/app/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppIndexRouteImport } from './routes/app/index'
+import { Route as AppResultsRouteImport } from './routes/app/results'
+import { Route as AppRegisterRouteImport } from './routes/app/register'
+import { Route as AppProfileRouteImport } from './routes/app/profile'
+import { Route as AppLoginRouteImport } from './routes/app/login'
+import { Route as AppDashboardRouteImport } from './routes/app/dashboard'
+import { Route as AppConfigRouteImport } from './routes/app/config'
+import { Route as AppAuditRouteImport } from './routes/app/audit'
 
 const ResultsRoute = ResultsRouteImport.update({
   id: '/results',
@@ -47,20 +56,74 @@ const AuditRoute = AuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppRouteRoute = AppRouteRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppResultsRoute = AppResultsRouteImport.update({
+  id: '/results',
+  path: '/results',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppRegisterRoute = AppRegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppProfileRoute = AppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppLoginRoute = AppLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppDashboardRoute = AppDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppConfigRoute = AppConfigRouteImport.update({
+  id: '/config',
+  path: '/config',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppAuditRoute = AppAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRouteRouteWithChildren
   '/audit': typeof AuditRoute
   '/config': typeof ConfigRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/results': typeof ResultsRoute
+  '/app/audit': typeof AppAuditRoute
+  '/app/config': typeof AppConfigRoute
+  '/app/dashboard': typeof AppDashboardRoute
+  '/app/login': typeof AppLoginRoute
+  '/app/profile': typeof AppProfileRoute
+  '/app/register': typeof AppRegisterRoute
+  '/app/results': typeof AppResultsRoute
+  '/app/': typeof AppIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,27 +133,53 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/results': typeof ResultsRoute
+  '/app/audit': typeof AppAuditRoute
+  '/app/config': typeof AppConfigRoute
+  '/app/dashboard': typeof AppDashboardRoute
+  '/app/login': typeof AppLoginRoute
+  '/app/profile': typeof AppProfileRoute
+  '/app/register': typeof AppRegisterRoute
+  '/app/results': typeof AppResultsRoute
+  '/app': typeof AppIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app': typeof AppRouteRouteWithChildren
   '/audit': typeof AuditRoute
   '/config': typeof ConfigRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/results': typeof ResultsRoute
+  '/app/audit': typeof AppAuditRoute
+  '/app/config': typeof AppConfigRoute
+  '/app/dashboard': typeof AppDashboardRoute
+  '/app/login': typeof AppLoginRoute
+  '/app/profile': typeof AppProfileRoute
+  '/app/register': typeof AppRegisterRoute
+  '/app/results': typeof AppResultsRoute
+  '/app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/app'
     | '/audit'
     | '/config'
     | '/login'
     | '/profile'
     | '/register'
     | '/results'
+    | '/app/audit'
+    | '/app/config'
+    | '/app/dashboard'
+    | '/app/login'
+    | '/app/profile'
+    | '/app/register'
+    | '/app/results'
+    | '/app/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,19 +189,37 @@ export interface FileRouteTypes {
     | '/profile'
     | '/register'
     | '/results'
+    | '/app/audit'
+    | '/app/config'
+    | '/app/dashboard'
+    | '/app/login'
+    | '/app/profile'
+    | '/app/register'
+    | '/app/results'
+    | '/app'
   id:
     | '__root__'
     | '/'
+    | '/app'
     | '/audit'
     | '/config'
     | '/login'
     | '/profile'
     | '/register'
     | '/results'
+    | '/app/audit'
+    | '/app/config'
+    | '/app/dashboard'
+    | '/app/login'
+    | '/app/profile'
+    | '/app/register'
+    | '/app/results'
+    | '/app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRouteRoute: typeof AppRouteRouteWithChildren
   AuditRoute: typeof AuditRoute
   ConfigRoute: typeof ConfigRoute
   LoginRoute: typeof LoginRoute
@@ -165,6 +272,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -172,11 +286,94 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/results': {
+      id: '/app/results'
+      path: '/results'
+      fullPath: '/app/results'
+      preLoaderRoute: typeof AppResultsRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/register': {
+      id: '/app/register'
+      path: '/register'
+      fullPath: '/app/register'
+      preLoaderRoute: typeof AppRegisterRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/profile': {
+      id: '/app/profile'
+      path: '/profile'
+      fullPath: '/app/profile'
+      preLoaderRoute: typeof AppProfileRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/login': {
+      id: '/app/login'
+      path: '/login'
+      fullPath: '/app/login'
+      preLoaderRoute: typeof AppLoginRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/dashboard': {
+      id: '/app/dashboard'
+      path: '/dashboard'
+      fullPath: '/app/dashboard'
+      preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/config': {
+      id: '/app/config'
+      path: '/config'
+      fullPath: '/app/config'
+      preLoaderRoute: typeof AppConfigRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/audit': {
+      id: '/app/audit'
+      path: '/audit'
+      fullPath: '/app/audit'
+      preLoaderRoute: typeof AppAuditRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
   }
 }
 
+interface AppRouteRouteChildren {
+  AppAuditRoute: typeof AppAuditRoute
+  AppConfigRoute: typeof AppConfigRoute
+  AppDashboardRoute: typeof AppDashboardRoute
+  AppLoginRoute: typeof AppLoginRoute
+  AppProfileRoute: typeof AppProfileRoute
+  AppRegisterRoute: typeof AppRegisterRoute
+  AppResultsRoute: typeof AppResultsRoute
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteRouteChildren: AppRouteRouteChildren = {
+  AppAuditRoute: AppAuditRoute,
+  AppConfigRoute: AppConfigRoute,
+  AppDashboardRoute: AppDashboardRoute,
+  AppLoginRoute: AppLoginRoute,
+  AppProfileRoute: AppProfileRoute,
+  AppRegisterRoute: AppRegisterRoute,
+  AppResultsRoute: AppResultsRoute,
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
+  AppRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRouteRoute: AppRouteRouteWithChildren,
   AuditRoute: AuditRoute,
   ConfigRoute: ConfigRoute,
   LoginRoute: LoginRoute,

@@ -65,7 +65,9 @@ export function generateAuditCertificate(data: CertificateData): jsPDF {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
   doc.setTextColor(180, 190, 205);
-  const dateStr = data.completedAt ? new Date(data.completedAt).toUTCString() : new Date().toUTCString();
+  const dateStr = data.completedAt
+    ? new Date(data.completedAt).toUTCString()
+    : new Date().toUTCString();
   doc.text(`Certified Timestamp: ${dateStr}`, pageWidth / 2, 54, { align: "center" });
 
   // Identification & Target Section
@@ -101,7 +103,7 @@ export function generateAuditCertificate(data: CertificateData): jsPDF {
   y += 55;
   const asrVal = data.attackSuccessRate ?? data.bypassRate ?? 0.16;
   const asrPercent = (asrVal * 100).toFixed(1);
-  const resiliencePercent = (data.resilienceScore ?? (100 - parseFloat(asrPercent))).toFixed(1);
+  const resiliencePercent = (data.resilienceScore ?? 100 - parseFloat(asrPercent)).toFixed(1);
 
   doc.setFillColor(22, 26, 35);
   doc.roundedRect(20, y, pageWidth - 40, 46, 3, 3, "F");
@@ -135,8 +137,15 @@ export function generateAuditCertificate(data: CertificateData): jsPDF {
   // Center Details
   doc.setFontSize(8.5);
   doc.setTextColor(200, 210, 225);
-  doc.text(`Harmful Attacks Detected: ${data.harmfulDetected ?? 4}`, pageWidth / 2, y + 21, { align: "center" });
-  doc.text(`Safe Defenses Executed: ${(data.totalPairs ?? 25) - (data.harmfulDetected ?? 4)}`, pageWidth / 2, y + 28, { align: "center" });
+  doc.text(`Harmful Attacks Detected: ${data.harmfulDetected ?? 4}`, pageWidth / 2, y + 21, {
+    align: "center",
+  });
+  doc.text(
+    `Safe Defenses Executed: ${(data.totalPairs ?? 25) - (data.harmfulDetected ?? 4)}`,
+    pageWidth / 2,
+    y + 28,
+    { align: "center" },
+  );
   doc.text("Defense Status: Fail-Closed Enforced", pageWidth / 2, y + 35, { align: "center" });
 
   // Regulatory Compliance Badges
@@ -188,7 +197,8 @@ export function generateAuditCertificate(data: CertificateData): jsPDF {
   doc.setDrawColor(42, 45, 53);
   doc.roundedRect(20, y, pageWidth - 40, 25, 3, 3, "D");
 
-  const headHash = data.merkleHeadHash || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  const headHash =
+    data.merkleHeadHash || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.5);
   doc.setTextColor(173, 198, 255);
@@ -208,7 +218,7 @@ export function generateAuditCertificate(data: CertificateData): jsPDF {
     "Verified and digitally attested by CENTINELA AI Security System via /api/audit/verify",
     pageWidth / 2,
     pageHeight - 14,
-    { align: "center" }
+    { align: "center" },
   );
 
   return doc;

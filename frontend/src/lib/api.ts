@@ -1,6 +1,13 @@
-export const GATEWAY_URL = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_GATEWAY_URL) || "http://localhost:8010";
-export const WS_URL = (typeof import.meta !== "undefined" && import.meta.env?.VITE_WS_URL) || GATEWAY_URL.replace(/^http/, "ws");
-export const IS_DEMO_MODE = typeof import.meta !== "undefined" && import.meta.env?.VITE_DEMO_MODE === "true";
+import { appUrl } from "@/config/routes";
+
+export const GATEWAY_URL =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_GATEWAY_URL) ||
+  "http://localhost:8010";
+export const WS_URL =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_WS_URL) ||
+  GATEWAY_URL.replace(/^http/, "ws");
+export const IS_DEMO_MODE =
+  typeof import.meta !== "undefined" && import.meta.env?.VITE_DEMO_MODE === "true";
 
 export function resolveUrl(endpoint: string, baseUrl?: string): string {
   if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) {
@@ -40,7 +47,8 @@ async function handleResponse(resp: Response) {
         localStorage.removeItem("token");
         localStorage.removeItem("user_email");
         if (typeof window !== "undefined") {
-          window.location.href = "/login?redirect=" + encodeURIComponent(window.location.pathname);
+          window.location.href =
+            appUrl("/login") + "?redirect=" + encodeURIComponent(window.location.pathname);
         }
       }
     }
@@ -102,7 +110,10 @@ export const api = {
   connectAuditWebSocket(
     sessionId: string,
     onMessage: (data: any) => void,
-    onStatus: (status: "connecting" | "connected" | "disconnected" | "error", error?: string) => void,
+    onStatus: (
+      status: "connecting" | "connected" | "disconnected" | "error",
+      error?: string,
+    ) => void,
   ): WebSocket {
     const token = localStorage.getItem("token");
     const ws = new WebSocket(`${WS_URL}/ws/${sessionId}?token=${token}`);
