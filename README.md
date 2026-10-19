@@ -1,15 +1,5 @@
 # Centinela — Automated Adversarial AI Safety Testing & Compliance Platform
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Status-Production--Ready-emerald?style=for-the-badge&logo=shield" alt="Status" />
-  <img src="https://img.shields.io/badge/License-Apache--2.0-blue?style=for-the-badge&logo=apache" alt="License" />
-  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
-  <img src="https://img.shields.io/badge/Frontend-React_19_/_TanStack-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19" />
-  <img src="https://img.shields.io/badge/Sandboxing-gVisor_%7C_Istio_mTLS-466BB0?style=for-the-badge&logo=kubernetes&logoColor=white" alt="Security" />
-  <img src="https://img.shields.io/badge/Audit-SHA--256_Merkle_Ledger-blueviolet?style=for-the-badge" alt="Merkle Ledger" />
-  <img src="https://img.shields.io/badge/Compliance-EU_AI_Act_%7C_HIPAA_%7C_SOX-FF6F00?style=for-the-badge" alt="Compliance" />
-</p>
-
 ---
 
 ## 📌 Table of Contents
