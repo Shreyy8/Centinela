@@ -75,10 +75,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "CENTINELA — AI Security Audit" },
-      { name: "description", content: "Configure, run and certify adversarial security audits for AI systems." },
+      {
+        name: "description",
+        content: "Configure, run and certify adversarial security audits for AI systems.",
+      },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "CENTINELA — AI Security Audit" },
-      { property: "og:description", content: "Configure, run and certify adversarial security audits for AI systems." },
+      {
+        property: "og:description",
+        content: "Configure, run and certify adversarial security audits for AI systems.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },

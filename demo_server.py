@@ -83,6 +83,23 @@ async def login(data: dict):
 async def signup(data: dict):
     return {"message": "User registered successfully"}
 
+DEMO_PROFILE = {
+    "fullName": "Sarah Chen",
+    "organization": "Northwind Health",
+    "role": "CISO",
+    "email": "sarah.chen@northwind.health",
+    "bio": "Chief Information Security Officer leading adversarial AI safety and automated LLM red-teaming audits."
+}
+
+@auth_app.get("/auth/profile")
+async def get_profile():
+    return DEMO_PROFILE
+
+@auth_app.put("/auth/profile")
+async def update_profile(data: dict):
+    DEMO_PROFILE.update(data)
+    return DEMO_PROFILE
+
 @auth_app.put("/config/settings")
 async def save_settings(data: dict):
     return {"status": "saved"}
@@ -107,6 +124,39 @@ async def save_api_key(data: dict):
 @auth_app.get("/config/api-key")
 async def get_api_key():
     return {"has_key": True, "key_preview": "sk-p...9aX2"}
+
+# Aliases for gateway sub-mounts (/api/auth/* and /api/config/*)
+@auth_app.post("/login")
+async def login_alias(data: dict):
+    return await login(data)
+
+@auth_app.post("/signup")
+async def signup_alias(data: dict):
+    return await signup(data)
+
+@auth_app.get("/profile")
+async def get_profile_alias():
+    return await get_profile()
+
+@auth_app.put("/profile")
+async def update_profile_alias(data: dict):
+    return await update_profile(data)
+
+@auth_app.get("/settings")
+async def get_settings_alias():
+    return await get_settings()
+
+@auth_app.put("/settings")
+async def save_settings_alias(data: dict):
+    return await save_settings(data)
+
+@auth_app.get("/api-key")
+async def get_api_key_alias():
+    return await get_api_key()
+
+@auth_app.post("/api-key")
+async def save_api_key_alias(data: dict):
+    return await save_api_key(data)
 
 # ==========================================
 # 2. BENCHMARK SERVICE (PORT 8006)
@@ -152,6 +202,18 @@ async def cancel_drill(session_id: str):
         RUNS_DB[session_id]["status"] = "cancelled"
     return {"status": "cancelled"}
 
+@bench_app.post("/run")
+async def run_drill_alias(req: DrillRequest):
+    return await run_drill(req)
+
+@bench_app.get("/{session_id}/status")
+async def get_drill_status_alias(session_id: str):
+    return await get_drill_status(session_id)
+
+@bench_app.post("/{session_id}/cancel")
+async def cancel_drill_alias(session_id: str):
+    return await cancel_drill(session_id)
+
 # ==========================================
 # 3. SESSION MANAGER (PORT 8000)
 # ==========================================
@@ -162,6 +224,10 @@ async def start_session():
     new_id = f"sess_{uuid.uuid4().hex[:8]}"
     return {"session_id": new_id, "session_key": "k8s_ephemeral_fernet_key_mock"}
 
+@session_app.post("/start")
+async def start_session_alias():
+    return await start_session()
+
 @session_app.get("/audit/verify/{session_id}")
 async def verify_audit(session_id: str):
     return {
@@ -170,6 +236,10 @@ async def verify_audit(session_id: str):
         "head_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "message": "SHA-256 Merkle hash chain cryptographically verified. Zero tampering detected."
     }
+
+@session_app.get("/verify/{session_id}")
+async def verify_audit_alias(session_id: str):
+    return await verify_audit(session_id)
 
 # ==========================================
 # 4. WEBSOCKET AUDIT GATEWAY (PORT 8011)
@@ -278,6 +348,21 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
             stream_task.cancel()
 
 # ==========================================
+# GATEWAY (PORT 8010)
+# ==========================================
+gateway_app = make_app("Centinela Mock Gateway (8010)")
+gateway_app.mount("/api/auth", auth_app)
+gateway_app.mount("/api/config", auth_app)
+gateway_app.mount("/api/drills", bench_app)
+gateway_app.mount("/api/session", session_app)
+gateway_app.mount("/api/audit", session_app)
+gateway_app.mount("/api", bench_app)
+
+@gateway_app.websocket("/ws/{session_id}")
+async def gateway_ws(websocket: WebSocket, session_id: str):
+    await websocket_handler(websocket, session_id)
+
+# ==========================================
 # LAUNCHER
 # ==========================================
 def start_server(app, port, name):
@@ -288,12 +373,14 @@ def main():
     print("  CENTINELA ZERO-DEPENDENCY DEMO SERVER")
     print("=" * 65)
     print("[*] Starting all mock services in a single process...")
+    print("  - Port 8010 -> Unified API & WebSocket Gateway")
     print("  - Port 8004 -> Auth & Config Service")
     print("  - Port 8006 -> Benchmark & Drill Runner")
     print("  - Port 8000 -> Session Manager & Cryptographic Verifier")
     print("  - Port 8011 -> Real-Time WebSocket Telemetry Gateway")
     print("=" * 65)
 
+    threading.Thread(target=start_server, args=(gateway_app, 8010, "Gateway"), daemon=True).start()
     threading.Thread(target=start_server, args=(auth_app, 8004, "Auth"), daemon=True).start()
     threading.Thread(target=start_server, args=(bench_app, 8006, "Benchmark"), daemon=True).start()
     threading.Thread(target=start_server, args=(session_app, 8000, "Session"), daemon=True).start()

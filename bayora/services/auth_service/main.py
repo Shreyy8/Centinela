@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, EmailStr
 from cryptography.fernet import Fernet
 import os
+from typing import Optional
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 JWT_SECRET = os.getenv("JWT_SECRET", "supersecretkey")
@@ -170,3 +171,63 @@ async def get_settings(email: str = Depends(get_current_user)):
     except Exception:
         pass
     return ConfigSettings().model_dump()
+
+
+class UserProfile(BaseModel):
+    fullName: str = "Sarah Chen"
+    organization: str = "Northwind Health"
+    role: str = "CISO"
+    email: Optional[str] = "sarah.chen@northwind.health"
+    bio: str = ""
+
+
+@app.get("/auth/profile")
+async def get_profile(email: str = Depends(get_current_user)):
+    try:
+        doc = await db.users.find_one({"email": email})
+        if doc and "profile" in doc:
+            p = doc["profile"]
+            return {
+                "fullName": p.get("fullName", "Sarah Chen"),
+                "organization": p.get("organization", "Northwind Health"),
+                "role": p.get("role", "CISO"),
+                "email": email or p.get("email", "sarah.chen@northwind.health"),
+                "bio": p.get("bio", ""),
+            }
+    except Exception as e:
+        print(f"[Auth Service] Notice: MongoDB not connected ({e}). Returning default profile.")
+    return {
+        "fullName": "Sarah Chen",
+        "organization": "Northwind Health",
+        "role": "CISO",
+        "email": email or "sarah.chen@northwind.health",
+        "bio": "",
+    }
+
+
+@app.put("/auth/profile")
+async def update_profile(profile: UserProfile, email: str = Depends(get_current_user)):
+    user_email = email or profile.email or "demo@centinela.ai"
+    try:
+        update_data = {
+            "fullName": profile.fullName,
+            "organization": profile.organization,
+            "role": profile.role,
+            "email": user_email,
+            "bio": profile.bio,
+            "updated_at": datetime.now(timezone.utc)
+        }
+        await db.users.update_one(
+            {"email": user_email},
+            {"$set": {"profile": update_data}},
+            upsert=True
+        )
+    except Exception as e:
+        print(f"[Auth Service] Notice: MongoDB not connected ({e}). Continuing in demo mode.")
+    return {
+        "fullName": profile.fullName,
+        "organization": profile.organization,
+        "role": profile.role,
+        "email": user_email,
+        "bio": profile.bio,
+    }
