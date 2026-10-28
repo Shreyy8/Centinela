@@ -236,13 +236,25 @@ function ResultsPage() {
                   </div>
                 </div>
 
-                <button
-                  onClick={handleDownloadPdf}
-                  className="inline-flex items-center gap-2 rounded-full bg-zinc-900 hover:bg-black text-white px-5 py-2.5 text-xs font-semibold shadow-2xs transition-all active:scale-95"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>Download Certificate</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <a
+                    href="/certificate-template.html"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 px-4 py-2.5 text-xs font-semibold shadow-2xs transition-all active:scale-95"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 text-zinc-500" />
+                    <span>View Print Layout</span>
+                  </a>
+
+                  <button
+                    onClick={handleDownloadPdf}
+                    className="inline-flex items-center gap-2 rounded-full bg-zinc-900 hover:bg-black text-white px-5 py-2.5 text-xs font-semibold shadow-2xs transition-all active:scale-95"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Download Certificate</span>
+                  </button>
+                </div>
               </div>
             </div>
 

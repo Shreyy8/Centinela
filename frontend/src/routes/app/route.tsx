@@ -72,6 +72,8 @@ function AppLayout() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user_email");
+    document.cookie = "token=; path=/; max-age=0; SameSite=Lax";
+    document.cookie = "user_email=; path=/; max-age=0; SameSite=Lax";
     navigate({ to: appRoute("login") as any });
   };
 

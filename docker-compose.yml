@@ -10,27 +10,44 @@ services:
     depends_on:
       - zookeeper
     ports:
-      - 9092:9092
+      - "9092:9092"   # INTERNAL: container-to-container (kafka:9092)
+      - "9094:9094"   # EXTERNAL: host machine access (localhost:9094)
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # Task 1.5: Dual-listener fix -- separates container routing from host access
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
 
   postgres:
-    image: postgres:16
+    image: postgres:16-alpine          # alpine: ~85 MB vs ~380 MB for debian
     environment:
       POSTGRES_USER: bayora
       POSTGRES_PASSWORD: bayora_password
       POSTGRES_DB: bayora_audit
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
-  # Base Microservice services (example for session-manager)
+  mongodb:
+    image: mongo:7-jammy               # 7-jammy pinned, avoids pulling "latest" (~700 MB)
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  # ── Non-ML microservices — use runtime-base (slim, no PyTorch) ─────────────
+
   session-manager:
-    build: .
+    build:
+      context: .
+      target: runtime-base
     command: ["uvicorn", "bayora.services.session_manager.main:app", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
       - kafka
@@ -43,7 +60,9 @@ services:
       LLM_KEY: ${LLM_KEY}
 
   audit-service:
-    build: .
+    build:
+      context: .
+      target: runtime-base
     command: ["uvicorn", "bayora.services.audit_service.main:app", "--host", "0.0.0.0", "--port", "8005"]
     depends_on:
       - kafka
@@ -55,7 +74,9 @@ services:
       POSTGRES_HOST: postgres
 
   benchmark-service:
-    build: .
+    build:
+      context: .
+      target: runtime-base
     command: ["uvicorn", "bayora.services.benchmark_service.main:app", "--host", "0.0.0.0", "--port", "8006"]
     depends_on:
       - kafka
@@ -69,7 +90,9 @@ services:
       RED_TEAM_URL: http://red-team:8003
 
   red-team:
-    build: .
+    build:
+      context: .
+      target: runtime-ml
     command: ["uvicorn", "bayora.services.red_team.main:app", "--host", "0.0.0.0", "--port", "8003"]
     depends_on:
       - kafka
@@ -80,7 +103,9 @@ services:
       RED_KEY: ${RED_KEY}
 
   blue-team:
-    build: .
+    build:
+      context: .
+      target: runtime-ml
     command: ["uvicorn", "bayora.services.blue_team.main:app", "--host", "0.0.0.0", "--port", "8001"]
     depends_on:
       - kafka
@@ -90,11 +115,41 @@ services:
       KAFKA_BROKER: kafka:9092
       BLUE_KEY: ${BLUE_KEY}
 
+  auth-service:
+    build:
+      context: .
+      target: runtime-base
+    command: ["uvicorn", "bayora.services.auth_service.main:app", "--host", "0.0.0.0", "--port", "8004"]
+    depends_on:
+      - mongodb
+    ports:
+      - "8004:8004"
+    environment:
+      MONGO_URI: mongodb://mongodb:27017
+      JWT_SECRET: ${JWT_SECRET:-supersecretkey_centinela_production_32bytes}
+
+  audit-gateway:
+    build:
+      context: .
+      target: runtime-base
+    command: ["uvicorn", "bayora.services.audit_gateway.main:app", "--host", "0.0.0.0", "--port", "8011"]
+    depends_on:
+      - kafka
+    ports:
+      - "8011:8011"
+    environment:
+      KAFKA_BROKER: kafka:9092
+      JWT_SECRET: ${JWT_SECRET:-supersecretkey_centinela_production_32bytes}
+
+  # ── ML-heavy service — uses runtime-ml (PyTorch CPU by default) ────────────
   llm-proxy:
     build:
       context: .
+      target: runtime-ml
       args:
-        EXTRA_REQUIREMENTS: requirements-llm.txt
+        # Default: CPU-only torch (~800 MB saved vs CUDA wheel).
+        # Override for GPU: TORCH_EXTRA_INDEX=https://download.pytorch.org/whl/cu121
+        TORCH_EXTRA_INDEX: ${TORCH_EXTRA_INDEX:-https://download.pytorch.org/whl/cpu}
     command: ["uvicorn", "bayora.services.llm_proxy.main:app", "--host", "0.0.0.0", "--port", "8002"]
     depends_on:
       - kafka
@@ -108,37 +163,9 @@ services:
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
 
-  auth-service:
-    build: .
-    command: ["uvicorn", "bayora.services.auth_service.main:app", "--host", "0.0.0.0", "--port", "8004"]
-    depends_on:
-      - mongodb
-    ports:
-      - "8004:8004"
-    environment:
-      MONGO_URI: mongodb://mongodb:27017
-      JWT_SECRET: ${JWT_SECRET:-supersecretkey}
-
-  mongodb:
-    image: mongo:latest
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-
-  audit-gateway:
-    build: .
-    command: ["uvicorn", "bayora.services.audit_gateway.main:app", "--host", "0.0.0.0", "--port", "8011"]
-    depends_on:
-      - kafka
-    ports:
-      - "8011:8011"
-    environment:
-      KAFKA_BROKER: kafka:9092
-      JWT_SECRET: ${JWT_SECRET:-supersecretkey}
-
+  # ── Nginx reverse proxy ────────────────────────────────────────────────────
   gateway:
-    image: nginx:alpine
+    image: nginx:alpine                # alpine nginx: ~23 MB vs ~187 MB for debian
     ports:
       - "8010:8010"
     volumes:
@@ -155,3 +182,4 @@ services:
 
 volumes:
   mongodb_data:
+  postgres_data:

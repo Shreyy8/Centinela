@@ -95,16 +95,20 @@ async def consume_reports():
                 session_id = data.get("session_id")
                 report = data.get("report")
                 if session_id and report:
-                    db.update_run(session_id, report)
-                    print(f"✅ Benchmark recorded for session {session_id}")
+                    run = db.update_run(session_id, report)
+                    total_pairs = run.get("total_pairs", 0) if run else 0
+                    total_attacks = run.get("total_attacks", 50) if run else 50
+                    print(f"✅ Benchmark recorded for session {session_id} ({total_pairs}/{total_attacks})")
                     await emit_progress(session_id, {
                         "type": "classification_complete",
                         "report": report,
+                        "run": run,
                     })
-                    if session_id in active_sessions:
-                        active_sessions[session_id].cancel()
-                        del active_sessions[session_id]
-                    asyncio.create_task(end_session_task(session_id))
+                    if run and run.get("status") == "completed":
+                        if session_id in active_sessions:
+                            active_sessions[session_id].cancel()
+                            del active_sessions[session_id]
+                        asyncio.create_task(end_session_task(session_id))
             except Exception as e:
                 print(f"❌ Error processing benchmark report: {e}")
     finally:

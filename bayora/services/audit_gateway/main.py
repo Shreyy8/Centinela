@@ -216,6 +216,28 @@ async def websocket_endpoint(
             "user": user_email,
         }))
 
+        # Replay any existing drill classifications from benchmark-service
+        try:
+            bench_url = os.getenv("BENCHMARK_SERVICE_URL", "http://benchmark-service:8006")
+            resp = requests.get(f"{bench_url}/drills/{session_id}/status", timeout=1.0)
+            if resp.status_code == 200:
+                run_data = resp.json()
+                if run_data.get("report") and run_data["report"].get("details"):
+                    for detail in run_data["report"]["details"]:
+                        await websocket.send_text(json.dumps({
+                            "type": "classification",
+                            "data": {
+                                "session_id": session_id,
+                                "is_harmful": detail.get("is_harmful", False),
+                                "category": detail.get("category", "Prompt Injection"),
+                                "response_snippet": detail.get("response", ""),
+                                "confidence": detail.get("confidence", 0.95),
+                                "timestamp": int(time.time() * 1_000_000_000),
+                            }
+                        }))
+        except Exception as e:
+            print(f"[Audit Gateway] Could not fetch past drill status: {e}")
+
         # If Kafka is not running, simulate live mock attack telemetry for this session
         if not kafka_online:
             asyncio.create_task(simulate_mock_audit_stream(session_id))

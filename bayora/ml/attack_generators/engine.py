@@ -3,7 +3,10 @@ import os
 import json
 import asyncio
 from typing import List, Dict, Optional
-import litellm
+try:
+    import litellm
+except ImportError:
+    litellm = None
 
 class AttackStrategy:
     def mutate(self, prompt: str) -> str:
@@ -43,6 +46,9 @@ class PAIRStrategy(AttackStrategy):
 
     async def _completion_with_retry(self, **kwargs):
         """Execute litellm.acompletion with exponential backoff on rate limits."""
+        if litellm is None:
+            print("[PAIR] litellm not installed. Returning fallback response.")
+            return None
         max_retries = 3
         backoff = 1.0
         rate_limit_cls = getattr(litellm, "RateLimitError", Exception)

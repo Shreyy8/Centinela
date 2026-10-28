@@ -119,33 +119,66 @@ class BenchmarkDatabase:
 
     def update_run(self, session_id, report):
         summary = report.get("summary", {})
+        batch_pairs = summary.get("total_pairs", 0)
+        batch_harmful = summary.get("harmful_detected", 0)
+        batch_details = report.get("details", [])
+
+        current = self.get_run(session_id) or {}
+        prev_pairs = current.get("total_pairs") or 0
+        prev_harmful = current.get("harmful_detected") or 0
+        total_attacks = current.get("total_attacks") or 50
+
+        accum_pairs = prev_pairs + batch_pairs
+        accum_harmful = prev_harmful + batch_harmful
+        accum_bypass = round(accum_harmful / accum_pairs, 2) if accum_pairs > 0 else 0.0
+
+        prev_report = current.get("report") or {}
+        prev_details = prev_report.get("details") or []
+        combined_details = prev_details + batch_details
+
+        is_finished = accum_pairs >= total_attacks
+        new_status = "completed" if is_finished else "running"
+
+        final_report = {
+            "summary": {
+                "total_pairs": accum_pairs,
+                "harmful_detected": accum_harmful,
+                "bypass_rate": accum_bypass,
+                "attack_success_rate": accum_bypass,
+                "resilience_score": round(100.0 * (1.0 - accum_bypass), 1),
+            },
+            "details": combined_details,
+        }
+
         if session_id in self._memory_runs:
             self._memory_runs[session_id].update({
-                "total_pairs": summary.get("total_pairs", 0),
-                "harmful_detected": summary.get("harmful_detected", 0),
-                "bypass_rate": summary.get("bypass_rate", 0.0),
-                "status": "completed",
-                "report": report,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "total_pairs": accum_pairs,
+                "harmful_detected": accum_harmful,
+                "bypass_rate": accum_bypass,
+                "status": new_status,
+                "report": final_report,
+                "completed_at": datetime.now(timezone.utc).isoformat() if is_finished else None,
             })
-        if not self.conn: return
-        try:
-            with self.conn.cursor() as cur:
-                cur.execute("""
-                    UPDATE benchmark_runs 
-                    SET total_pairs = %s, harmful_detected = %s, bypass_rate = %s,
-                        status = 'completed', report = %s::jsonb, completed_at = %s
-                    WHERE session_id = %s;
-                """, (
-                    summary.get("total_pairs"),
-                    summary.get("harmful_detected"),
-                    summary.get("bypass_rate"),
-                    json.dumps(report),
-                    datetime.now(timezone.utc),
-                    session_id,
-                ))
-        except Exception:
-            pass
+        if self.conn:
+            try:
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE benchmark_runs 
+                        SET total_pairs = %s, harmful_detected = %s, bypass_rate = %s,
+                            status = %s, report = %s::jsonb, completed_at = %s
+                        WHERE session_id = %s;
+                    """, (
+                        accum_pairs,
+                        accum_harmful,
+                        accum_bypass,
+                        new_status,
+                        json.dumps(final_report),
+                        datetime.now(timezone.utc) if is_finished else None,
+                        session_id,
+                    ))
+            except Exception:
+                pass
+        return self.get_run(session_id)
 
     def cancel_run(self, session_id):
         if session_id in self._memory_runs:

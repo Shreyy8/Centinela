@@ -72,21 +72,76 @@ function LiveAuditPage() {
     "disconnected",
   );
   const [chartData, setChartData] = React.useState({
-    passing: 48,
-    failing: 2,
-    critical: 2,
+    passing: 0,
+    failing: 0,
+    critical: 0,
     high: 0,
   });
   const [riskData, setRiskData] = React.useState<
     Record<string, { count: number; harmful: number }>
   >({
-    Jailbreak: { count: 18, harmful: 1 },
-    PromptInjection: { count: 14, harmful: 1 },
-    DataExtraction: { count: 10, harmful: 0 },
-    Toxicity: { count: 8, harmful: 0 },
+    Jailbreak: { count: 0, harmful: 0 },
+    PromptInjection: { count: 0, harmful: 0 },
+    DataExtraction: { count: 0, harmful: 0 },
+    Toxicity: { count: 0, harmful: 0 },
   });
   const wsRef = React.useRef<WebSocket | null>(null);
   const reconnectTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Initial fetch of drill run status & past evaluations
+  React.useEffect(() => {
+    if (!session_id) return;
+
+    api
+      .get(`/drills/${session_id}/status`)
+      .then((data: any) => {
+        if (!data) return;
+        setStats({
+          total_attacks: data.total_attacks || 50,
+          attacks_sent: data.attacks_sent || data.total_attacks || 50,
+          responses_received: data.responses_received || data.total_pairs || 0,
+          total_pairs: data.total_pairs,
+          harmful_detected: data.harmful_detected,
+          bypass_rate: data.bypass_rate,
+          status: data.status || "completed",
+        });
+
+        if (data.report?.details && Array.isArray(data.report.details) && data.report.details.length > 0) {
+          const entries: FeedEntry[] = data.report.details.map((d: any, idx: number) => ({
+            sev: d.is_harmful ? "CRITICAL" : "PASS",
+            category: d.category || (d.is_harmful ? "Jailbreak" : "Prompt Injection"),
+            payload: d.response || d.prompt || "Adversarial probe completed",
+            ts: new Date(Date.now() - (data.report.details.length - idx) * 1000).toLocaleTimeString(),
+          }));
+          setFeed(entries);
+
+          const total = data.report.details.length;
+          const harmful = data.report.details.filter((d: any) => d.is_harmful).length;
+          setChartData({
+            passing: total - harmful,
+            failing: harmful,
+            critical: harmful,
+            high: 0,
+          });
+
+          // Compute risk breakdown
+          const catCounts: Record<string, { count: number; harmful: number }> = {
+            Jailbreak: { count: 0, harmful: 0 },
+            PromptInjection: { count: 0, harmful: 0 },
+            DataExtraction: { count: 0, harmful: 0 },
+            Toxicity: { count: 0, harmful: 0 },
+          };
+          data.report.details.forEach((d: any) => {
+            const cat = d.category || (d.is_harmful ? "Jailbreak" : "PromptInjection");
+            if (!catCounts[cat]) catCounts[cat] = { count: 0, harmful: 0 };
+            catCounts[cat].count += 1;
+            if (d.is_harmful) catCounts[cat].harmful += 1;
+          });
+          setRiskData(catCounts);
+        }
+      })
+      .catch((err) => console.warn("Could not fetch initial drill status:", err));
+  }, [session_id]);
 
   const connectWs = React.useCallback(() => {
     if (!session_id) return;
@@ -173,8 +228,8 @@ function LiveAuditPage() {
     };
   }, [connectWs]);
 
-  const totalEval = chartData.passing + chartData.failing || 1;
-  const resilience = Math.round((chartData.passing / totalEval) * 100);
+  const totalEval = chartData.passing + chartData.failing;
+  const resilience = totalEval > 0 ? Math.round((chartData.passing / totalEval) * 100) : 100;
 
   const handleStop = async () => {
     if (!session_id) return;

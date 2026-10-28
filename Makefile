@@ -28,12 +28,14 @@ keys:
 	@echo "Generating Encryption Keys..."
 	python bayora/infra/scripts/generate-keys.py
 
+# Task 1.4: Point test target at the correct tests/integration/ directory
 test:
-	@echo "Running All Tests..."
-	PYTHONPATH=. pytest bayora/services/session_manager/test_session_manager.py \
-	           bayora/services/llm_proxy/test_llm_proxy.py \
-	           bayora/ml/evaluation/test_pipelines.py \
-	           bayora/monitoring/test_monitoring.py
+	@echo "Running Integration Tests..."
+	PYTHONPATH=. pytest tests/integration/test_session_manager.py \
+	           tests/integration/test_monitoring.py \
+	           tests/integration/test_pipelines.py \
+	           tests/integration/test_llm_proxy.py \
+	           -v
 
 clean:
 	@echo "Destroying Infrastructure..."

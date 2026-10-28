@@ -1,4 +1,5 @@
 import os
+import json
 import base64
 from cryptography.fernet import Fernet
 
@@ -11,6 +12,10 @@ def get_key(env_var):
 RED_KEY = get_key("RED_KEY")
 BLUE_KEY = get_key("BLUE_KEY")
 LLM_KEY = get_key("LLM_KEY")
+
+# Task 1.6: Fernet instance for encrypting the ephemeral SESSION_KEY inside the message
+# envelope using LLM_KEY — so the session key never travels as plaintext in Kafka headers.
+_llm_envelope_fernet = Fernet(LLM_KEY)
 
 class IsolatedMessageBus:
     def __init__(self, audit_log, kafka_producer=None, batch_size=5):
@@ -49,9 +54,13 @@ class IsolatedMessageBus:
         llm_encrypted = self.llm_fernet.encrypt(plaintext)
 
         # 3. Publish to llm.requests
+        # Task 1.6: session_key is encrypted with LLM_KEY before embedding in the header.
+        # LLM Proxy decrypts it using its own LLM_KEY instance — no plaintext on the wire.
+        raw_key_bytes = session_key_str if isinstance(session_key_str, bytes) else session_key_str.encode()
+        encrypted_session_key = _llm_envelope_fernet.encrypt(raw_key_bytes)
         headers = [
             ("session_id", session_id.encode()),
-            ("session_key", session_key_str.encode())
+            ("session_key_enc", encrypted_session_key)   # encrypted, not plaintext
         ]
         await self.produce("llm.requests", llm_encrypted, headers=headers)
         
@@ -97,8 +106,9 @@ class IsolatedMessageBus:
         for encrypted_resp in self.unreleased_stores[session_id]:
             batch_plaintext.append(session_fernet.decrypt(encrypted_resp).decode('utf-8'))
             
-        # Re-encrypt bundle with BLUE_KEY
-        bundle_bytes = str(batch_plaintext).encode('utf-8')
+        # Task 1.8: Use json.dumps instead of str() for safe, standard serialization.
+        # Blue Team deserializes with json.loads() — no ast.literal_eval risk.
+        bundle_bytes = json.dumps(batch_plaintext).encode('utf-8')
         blue_encrypted = self.blue_fernet.encrypt(bundle_bytes)
         
         # Produce to blue.evaluation

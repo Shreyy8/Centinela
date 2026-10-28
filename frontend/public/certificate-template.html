@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Centinela — Certificate of AI Safety & Robustness</title>
+  
+  <!-- High-Editorial Typography from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Pinyon+Script&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       Print & Base Setup: Strict Single-Page A4 Portrait Boundaries
+       ========================================================================== */
+    @page {
+      size: A4 portrait;
+      margin: 0;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #f5f4f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #1c1917;
+    }
+
+    /* Print media rule: ensure exact fit on paper */
+    @media print {
+      html, body {
+        background-color: #fcfbf9 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .certificate-container {
+        box-shadow: none !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+
+    /* ==========================================================================
+       Certificate Document Canvas: Warm Alabaster with 65% Open Whitespace
+       ========================================================================== */
+    .certificate-container {
+      position: relative;
+      width: 210mm;
+      height: 297mm;
+      max-width: 210mm;
+      max-height: 297mm;
+      background-color: #fcfbf9; /* Warm alabaster / ecru canvas */
+      padding: 24mm 32mm 24mm 24mm; /* Asymmetric right padding for vertical mark */
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.06);
+    }
+
+    /* ==========================================================================
+       Dominant Vertical Architectural Mark (Right Edge)
+       Oversized, low-contrast lowercase serif rotated 90deg down the margin
+       ========================================================================== */
+    .vertical-architectural-mark {
+      position: absolute;
+      top: 0;
+      right: 9mm;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .vertical-word {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 88px;
+      font-weight: 300;
+      letter-spacing: 0.18em;
+      text-transform: lowercase;
+      color: #e7e5e4; /* Delicate warm taupe / stone watermark */
+      transform: rotate(90deg);
+      transform-origin: center center;
+      white-space: nowrap;
+    }
+
+    /* Subtle Architectural Vertical Hairline Anchor */
+    .vertical-guide-line {
+      position: absolute;
+      top: 24mm;
+      bottom: 24mm;
+      right: 22mm;
+      width: 1px;
+      background: #e7e5e4;
+    }
+
+    /* ==========================================================================
+       Structured Left-Aligned Typography Layout
+       ========================================================================== */
+    .content-flow {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    /* Minimal 1px Hairline Rules */
+    .hairline-rule {
+      width: 100%;
+      height: 1px;
+      background-color: #d6d3d1;
+      border: none;
+    }
+
+    .hairline-subtle {
+      background-color: #e7e5e4;
+    }
+
+    /* ── 1. Header Section ─────────────────────────────────────────────────── */
+    .header-block {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .meta-lead-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8pt;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: #78716c;
+    }
+
+    .meta-seal-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #44403c;
+    }
+
+    .meta-seal-badge::before {
+      content: "";
+      display: inline-block;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background-color: #059669; /* Discrete emerald cryptographic verification dot */
+    }
+
+    .title-header {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 11pt;
+      font-weight: 400;
+      text-transform: uppercase;
+      letter-spacing: 0.42em; /* Delicate, widely-tracked serif header */
+      color: #525252;
+      margin-top: 4px;
+      margin-bottom: 8px;
+    }
+
+    /* ── 2. Primary Headline & Recipient ──────────────────────────────────── */
+    .subject-block {
+      margin-top: 14mm;
+      margin-bottom: 8mm;
+    }
+
+    .pre-recipient-label {
+      font-size: 8.5pt;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #78716c;
+      margin-bottom: 8px;
+      font-weight: 400;
+    }
+
+    .recipient-headline {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 32pt;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      line-height: 1.15;
+      color: #1c1917;
+      margin-bottom: 6px;
+    }
+
+    .recipient-subtext {
+      font-family: 'Inter', sans-serif;
+      font-size: 9.5pt;
+      color: #78716c;
+      font-weight: 400;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── 3. Narrative Context / Evaluation Scope ─────────────────────────── */
+    .narrative-body {
+      font-family: 'Inter', sans-serif;
+      font-size: 9.8pt;
+      font-weight: 300;
+      line-height: 1.68;
+      color: #44403c;
+      max-width: 142mm;
+      margin-bottom: 10mm;
+    }
+
+    .narrative-body strong {
+      font-weight: 500;
+      color: #1c1917;
+    }
+
+    /* ── 4. Asymmetric Security Metrics Grid ──────────────────────────────── */
+    .metrics-section {
+      margin-bottom: 9mm;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.2fr;
+      gap: 20px;
+      padding: 12px 0 16px 0;
+    }
+
+    .metric-col {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .metric-value {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 26pt;
+      font-weight: 500;
+      line-height: 1;
+      color: #1c1917;
+      letter-spacing: -0.02em;
+    }
+
+    .metric-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 7.2pt;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: #78716c;
+    }
+
+    .metric-sub {
+      font-size: 8pt;
+      color: #a8a29e;
+      font-weight: 300;
+      margin-top: 2px;
+    }
+
+    /* ── 5. Regulatory Compliance Verification Matrix ─────────────────────── */
+    .compliance-section {
+      margin-bottom: 10mm;
+    }
+
+    .compliance-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      padding: 12px 0;
+    }
+
+    .compliance-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .compliance-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 7.5pt;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #1c1917;
+    }
+
+    .compliance-status {
+      font-size: 7.5pt;
+      font-weight: 500;
+      color: #047857; /* Refined forest emerald */
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .compliance-desc {
+      font-size: 8pt;
+      font-weight: 300;
+      color: #78716c;
+      line-height: 1.35;
+    }
+
+    /* ── 6. Forensic Provenance & Signatures ──────────────────────────────── */
+    .footer-provenance-block {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-top: 10px;
+    }
+
+    .merkle-provenance {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-width: 82mm;
+    }
+
+    .provenance-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 6.8pt;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #78716c;
+    }
+
+    .provenance-hash {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 6.6pt;
+      color: #a8a29e;
+      word-break: break-all;
+      line-height: 1.3;
+    }
+
+    /* Ultra-Minimalist Signatures */
+    .signatures-group {
+      display: flex;
+      gap: 24px;
+    }
+
+    .signature-item {
+      width: 44mm;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .signature-hand {
+      font-family: 'Pinyon Script', cursive;
+      font-size: 20pt;
+      color: #1c1917;
+      height: 28px;
+      line-height: 28px;
+      margin-bottom: 2px;
+      padding-left: 2px;
+    }
+
+    .signature-seal-mark {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 11pt;
+      font-style: italic;
+      color: #44403c;
+      height: 28px;
+      line-height: 28px;
+      margin-bottom: 2px;
+    }
+
+    .signature-line {
+      width: 100%;
+      height: 1px;
+      background-color: #d6d3d1;
+      margin-bottom: 5px;
+    }
+
+    .signature-meta {
+      font-family: 'Inter', sans-serif;
+      font-size: 6.8pt;
+      text-transform: lowercase;
+      letter-spacing: 0.08em;
+      color: #78716c;
+    }
+
+    /* Print control toolbar for browser view */
+    .print-bar {
+      position: fixed;
+      bottom: 20px;
+      background: #1c1917;
+      color: #fafaf9;
+      padding: 10px 20px;
+      border-radius: 9999px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 100;
+    }
+
+    .print-btn {
+      background: #fcfbf9;
+      color: #1c1917;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .print-btn:hover {
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- In-Browser Print Action Bar -->
+  <aside class="print-bar no-print" aria-label="Print controls">
+    <span>Editorial Certificate Preview (A4 Portrait)</span>
+    <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+  </aside>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       THE CERTIFICATE DOCUMENT (A4 Portrait, Pristine Paper Only)
+       ══════════════════════════════════════════════════════════════════════════ -->
+  <main class="certificate-container" role="document" aria-label="Certificate of AI Safety and Robustness">
+
+    <!-- Dominant Vertical Architectural Element on Right Margin -->
+    <div class="vertical-architectural-mark" aria-hidden="true">
+      <span class="vertical-word">certificate</span>
+    </div>
+    <div class="vertical-guide-line" aria-hidden="true"></div>
+
+    <!-- Structured Left-Aligned Document Flow -->
+    <div class="content-flow">
+
+      <!-- ── SECTION 1: HEADER & IDENTITY ─────────────────────────────────── -->
+      <header class="header-block">
+        <div class="meta-lead-row">
+          <span>CENTINELA ASSURANCE LABS</span>
+          <span class="meta-seal-badge">CRYPTOGRAPHICALLY ATTESTED</span>
+          <span>SERIES 2026.IV</span>
+        </div>
+
+        <hr class="hairline-rule" />
+
+        <div class="title-header">
+          CERTIFICATE OF ADVERSARIAL AI ROBUSTNESS
+        </div>
+      </header>
+
+      <!-- ── SECTION 2: RECIPIENT & TARGET SPECIFICATION ───────────────────── -->
+      <section class="subject-block">
+        <div class="pre-recipient-label">This formal attestation is awarded to the system deployment</div>
+        <h1 class="recipient-headline">GPT-4 Turbo Architecture</h1>
+        <p class="recipient-subtext">
+          Enterprise Health Cluster &bull; Partition ID: <code>session_88934327_audit</code> &bull; Auditee: Northwind Health Network
+        </p>
+      </section>
+
+      <!-- ── SECTION 3: EDITORIAL CONTEXT & NARRATIVE ─────────────────────── -->
+      <section class="narrative-body">
+        The designated autonomous language model has successfully undergone systematic adversarial stress testing within Centinela’s multi-tenant zero-trust isolation harness. Evaluated against curated adversarial corpora encompassing <strong>AdvBench 520</strong> and <strong>JailbreakBench 100</strong>, the model demonstrated resilience against multi-turn jailbreaks, prompt injection strategies, and semantic exfiltration attempts while maintaining zero observable state leakage across tenant boundaries.
+      </section>
+
+      <!-- ── SECTION 4: ASYMMETRIC METRICS ────────────────────────────────── -->
+      <section class="metrics-section">
+        <hr class="hairline-rule hairline-subtle" />
+        <div class="metrics-grid">
+          <div class="metric-col">
+            <span class="metric-value">96.0%</span>
+            <span class="metric-label">Resilience Index</span>
+            <span class="metric-sub">Adversarial defense success rate</span>
+          </div>
+          <div class="metric-col">
+            <span class="metric-value">0.04</span>
+            <span class="metric-label">Bypass Vulnerability</span>
+            <span class="metric-sub">2 penetrations / 50 vectors</span>
+          </div>
+          <div class="metric-col">
+            <span class="metric-value">Fail-Closed</span>
+            <span class="metric-label">Governance State</span>
+            <span class="metric-sub">Dynamic micro-batch isolation active</span>
+          </div>
+        </div>
+        <hr class="hairline-rule hairline-subtle" />
+      </section>
+
+      <!-- ── SECTION 5: STATUTORY COMPLIANCE MAPPING ──────────────────────── -->
+      <section class="compliance-section">
+        <div class="compliance-grid">
+          <div class="compliance-item">
+            <span class="compliance-title">EU AI Act Art. 14</span>
+            <span class="compliance-status">Verified Compliant</span>
+            <span class="compliance-desc">Human oversight telemetry &amp; fail-closed safety boundary enacted.</span>
+          </div>
+          <div class="compliance-item">
+            <span class="compliance-title">HIPAA Security Rule</span>
+            <span class="compliance-status">Verified Safeguard</span>
+            <span class="compliance-desc">Zero KV-cache retention; synthetic echo filters suppressed PHI leakage.</span>
+          </div>
+          <div class="compliance-item">
+            <span class="compliance-title">NIST AI RMF 1.0</span>
+            <span class="compliance-status">Attested Robust</span>
+            <span class="compliance-desc">Adversarial taxonomy stress test mapped to Govern &amp; Map functions.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── SECTION 6: MERKLE PROVENANCE & MINIMALIST SIGNATURES ─────────── -->
+      <footer class="footer-provenance-block">
+        <!-- Cryptographic Ledger Provenance -->
+        <div class="merkle-provenance">
+          <span class="provenance-tag">Immutable Ledger Verification</span>
+          <span class="provenance-hash">
+            HEAD_HASH: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+          </span>
+          <span class="provenance-tag" style="margin-top: 2px;">
+            Issued: 27 October 2026 &bull; Verified via <code>/api/audit/verify</code>
+          </span>
+        </div>
+
+        <!-- Minimalist Signatures with Hairline Rules -->
+        <div class="signatures-group">
+          <div class="signature-item">
+            <div class="signature-hand">Ayush Kumar</div>
+            <div class="signature-line"></div>
+            <span class="signature-meta">lead evaluator &bull; centinela</span>
+          </div>
+
+          <div class="signature-item">
+            <div class="signature-seal-mark">Centinela Trust Engine</div>
+            <div class="signature-line"></div>
+            <span class="signature-meta">cryptographic attestation</span>
+          </div>
+        </div>
+      </footer>
+
+    </div>
+  </main>
+
+</body>
+</html>
