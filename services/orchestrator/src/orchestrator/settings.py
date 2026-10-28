@@ -1,4 +1,4 @@
-ERROR:    [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8080): [winerror 10048] only one usage of each socket address (protocol/network address/port) is normally permitted"""Django settings for the CENTINELA orchestrator service."""
+"""Django settings for the CENTINELA orchestrator service."""
 
 from __future__ import annotations
 

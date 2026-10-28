@@ -1,5 +1,6 @@
 import os
 import ast
+import json
 import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
@@ -7,7 +8,6 @@ from pydantic import BaseModel
 from cryptography.fernet import Fernet
 from bayora.ml.classifiers.defense import DefenseClassifier
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-import json
 import time
 
 def get_key(env_var):
@@ -40,7 +40,11 @@ async def consume_blue_evaluations():
             
             try:
                 decrypted_bytes = fernet.decrypt(encrypted_bundle)
-                responses = ast.literal_eval(decrypted_bytes.decode('utf-8'))
+                raw_text = decrypted_bytes.decode('utf-8')
+                try:
+                    responses = json.loads(raw_text)
+                except Exception:
+                    responses = ast.literal_eval(raw_text)
                 
                 pairs = [("Adversarial Prompt", resp) for resp in responses]
                 report = classifier.evaluate_batch(pairs)
@@ -111,7 +115,11 @@ class BatchEvaluationRequest(BaseModel):
 def evaluate_batch(req: BatchEvaluationRequest):
     try:
         decrypted_bytes = fernet.decrypt(req.encrypted_bundle.encode())
-        responses = ast.literal_eval(decrypted_bytes.decode('utf-8'))
+        raw_text = decrypted_bytes.decode('utf-8')
+        try:
+            responses = json.loads(raw_text)
+        except Exception:
+            responses = ast.literal_eval(raw_text)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to decrypt bundle: {str(e)}")
 

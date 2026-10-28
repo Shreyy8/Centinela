@@ -26,6 +26,8 @@ function LoginPage() {
     onSuccess: (data) => {
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("user_email", data.email || email);
+      document.cookie = `token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = `user_email=${encodeURIComponent(data.email || email)}; path=/; max-age=86400; SameSite=Lax`;
       toast.success("Successfully authenticated!");
       navigate({ to: appRoute("dashboard") as any });
     },

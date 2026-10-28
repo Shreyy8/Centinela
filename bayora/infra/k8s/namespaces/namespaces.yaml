@@ -51,3 +51,23 @@ metadata:
   labels:
     istio-injection: disabled
     pod-security.kubernetes.io/enforce: baseline
+---
+# Task 4.2: auth namespace — hosts auth-service and mongodb
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: auth
+  labels:
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# Task 4.2: benchmark namespace — hosts benchmark-service
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: benchmark
+  labels:
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest

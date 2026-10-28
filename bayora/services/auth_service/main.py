@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -11,7 +11,7 @@ import os
 from typing import Optional
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-JWT_SECRET = os.getenv("JWT_SECRET", "supersecretkey")
+JWT_SECRET = os.getenv("JWT_SECRET", "supersecretkey_centinela_security_jwt_secret_32bytes")
 JWT_ALGORITHM = "HS256"
 TOKEN_EXPIRY_MINUTES = 60
 CONFIG_ENCRYPTION_KEY = os.getenv("CONFIG_ENCRYPTION_KEY", Fernet.generate_key().decode())
@@ -21,7 +21,14 @@ app = FastAPI(title="Centinela Auth & Config Service")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080", "http://localhost:8010"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8080",
+        "http://localhost:8010",
+        "http://localhost:3000",
+    ],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -77,7 +84,7 @@ def create_access_token(data: dict):
 
 
 @app.post("/auth/signup")
-async def signup(user: UserSignup):
+async def signup(user: UserSignup, response: Response):
     if await get_user(user.email):
         raise HTTPException(status_code=400, detail="User already exists")
     hashed_password = pwd_context.hash(user.password[:72])
@@ -87,14 +94,24 @@ async def signup(user: UserSignup):
         "created_at": datetime.now(timezone.utc)
     }
     await db.users.insert_one(new_user)
-    return {"message": "User created successfully"}
+    access_token = create_access_token(data={"sub": user.email})
+    response.set_cookie(key="token", value=access_token, max_age=86400, samesite="lax", path="/")
+    response.set_cookie(key="user_email", value=user.email, max_age=86400, samesite="lax", path="/")
+    return {
+        "message": "User created successfully",
+        "access_token": access_token,
+        "token_type": "bearer",
+        "email": user.email
+    }
 
 @app.post("/auth/login")
-async def login(user_data: UserLogin):
+async def login(user_data: UserLogin, response: Response):
     user = await get_user(user_data.email)
     if not user or not pwd_context.verify(user_data.password[:72], user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     access_token = create_access_token(data={"sub": user_data.email})
+    response.set_cookie(key="token", value=access_token, max_age=86400, samesite="lax", path="/")
+    response.set_cookie(key="user_email", value=user_data.email, max_age=86400, samesite="lax", path="/")
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -102,7 +119,9 @@ async def login(user_data: UserLogin):
     }
 
 @app.post("/auth/logout")
-async def logout():
+async def logout(response: Response):
+    response.delete_cookie(key="token", path="/")
+    response.delete_cookie(key="user_email", path="/")
     return {"message": "Successfully logged out"}
 
 

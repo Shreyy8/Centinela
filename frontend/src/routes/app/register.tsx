@@ -23,9 +23,18 @@ function RegisterPage() {
 
   const signupMutation = useMutation({
     mutationFn: (data: any) => api.post("/auth/signup", data),
-    onSuccess: () => {
-      toast.success("Account created successfully! Please sign in.");
-      navigate({ to: appRoute("login") as any });
+    onSuccess: (data: any) => {
+      if (data?.access_token) {
+        localStorage.setItem("token", data.access_token);
+        localStorage.setItem("user_email", data.email || email);
+        document.cookie = `token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `user_email=${encodeURIComponent(data.email || email)}; path=/; max-age=86400; SameSite=Lax`;
+        toast.success("Account created successfully! Welcome to Centinela.");
+        navigate({ to: appRoute("dashboard") as any });
+      } else {
+        toast.success("Account created successfully! Redirecting...");
+        navigate({ to: appRoute("dashboard") as any });
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || "Registration failed. Please try again.");

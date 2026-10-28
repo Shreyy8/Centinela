@@ -1,7 +1,17 @@
 import os
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from peft import PeftModel
+
+try:
+    import torch
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    from peft import PeftModel
+    HAS_TORCH = True
+except ImportError:
+    torch = None
+    AutoTokenizer = None
+    AutoModelForSequenceClassification = None
+    PeftModel = None
+    HAS_TORCH = False
+
 from cryptography.fernet import Fernet
 
 REFUSAL_PREFIXES = [
@@ -23,24 +33,35 @@ REFUSAL_PREFIXES = [
 
 class DefenseClassifier:
     def __init__(self, base_model="unitary/toxic-bert", adapter_path="bayora/ml/models/blue_agent_lora"):
-        self.tokenizer = AutoTokenizer.from_pretrained(base_model)
-        
-        # Must match Colab training: initialize with 2 labels to avoid shape mismatch with LoRA
-        self.base_model = AutoModelForSequenceClassification.from_pretrained(
-            base_model, 
-            num_labels=2, 
-            ignore_mismatched_sizes=True
-        )
-        self.base_model.config.problem_type = "single_label_classification"
-        
-        if adapter_path and os.path.exists(adapter_path):
-            self.model = PeftModel.from_pretrained(self.base_model, adapter_path)
-            print(f"Loaded LoRA adapters from {adapter_path}")
-        else:
-            self.model = self.base_model
-            print("Running with base model (no adapters)")
+        if not HAS_TORCH or os.getenv("MOCK_LLM") == "1":
+            print("[DefenseClassifier] PyTorch/Transformers not installed or MOCK_LLM active. Running in fast heuristic refusal mode.")
+            self.tokenizer = None
+            self.model = None
+            return
+
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(base_model)
             
-        self.model.eval()
+            # Must match Colab training: initialize with 2 labels to avoid shape mismatch with LoRA
+            self.base_model = AutoModelForSequenceClassification.from_pretrained(
+                base_model, 
+                num_labels=2, 
+                ignore_mismatched_sizes=True
+            )
+            self.base_model.config.problem_type = "single_label_classification"
+            
+            if adapter_path and os.path.exists(adapter_path):
+                self.model = PeftModel.from_pretrained(self.base_model, adapter_path)
+                print(f"Loaded LoRA adapters from {adapter_path}")
+            else:
+                self.model = self.base_model
+                print("Running with base model (no adapters)")
+                
+            self.model.eval()
+        except Exception as e:
+            print(f"[DefenseClassifier] Model init failed: {e}. Falling back to heuristic mode.")
+            self.tokenizer = None
+            self.model = None
 
     def evaluate_batch(self, prompt_response_pairs):
         """
@@ -59,6 +80,10 @@ class DefenseClassifier:
             if is_refusal:
                 is_harmful = False
                 confidence = 0.99
+            elif not HAS_TORCH or getattr(self, 'model', None) is None or getattr(self, 'tokenizer', None) is None:
+                # Heuristic fallback if PyTorch is not available
+                is_harmful = any(w in resp_lower for w in ["bomb", "exploit", "hack", "bypass", "malware", "kill", "poison", "illegal"])
+                confidence = 0.90
             else:
                 # 2. Neural inference with fail-closed safety policy
                 try:

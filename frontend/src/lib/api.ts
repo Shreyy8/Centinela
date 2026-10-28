@@ -34,7 +34,11 @@ export function resolveUrl(endpoint: string, baseUrl?: string): string {
 }
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("token");
+  let token = typeof localStorage !== "undefined" ? localStorage.getItem("token") : null;
+  if (!token && typeof document !== "undefined") {
+    const match = document.cookie.match(/(?:^|; )token=([^;]*)/);
+    if (match) token = decodeURIComponent(match[1]);
+  }
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return headers;
@@ -46,6 +50,10 @@ async function handleResponse(resp: Response) {
       if (!IS_DEMO_MODE) {
         localStorage.removeItem("token");
         localStorage.removeItem("user_email");
+        if (typeof document !== "undefined") {
+          document.cookie = "token=; path=/; max-age=0; SameSite=Lax";
+          document.cookie = "user_email=; path=/; max-age=0; SameSite=Lax";
+        }
         if (typeof window !== "undefined") {
           window.location.href =
             appUrl("/login") + "?redirect=" + encodeURIComponent(window.location.pathname);

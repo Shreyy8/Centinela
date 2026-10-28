@@ -1,15 +1,70 @@
+# ── Version control ───────────────────────────────────────────────────────────
 .git
 .gitignore
-node_modules
-frontend
-frontend/node_modules
+.github
+
+# ── Frontend (Node / React — not needed in Python containers) ─────────────────
+frontend/
+node_modules/
+**/node_modules
+
+# ── Python bytecode & caches ──────────────────────────────────────────────────
 **/__pycache__
 **/*.pyc
 **/*.pyo
 **/*.pyd
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+
+# ── Virtual environments ───────────────────────────────────────────────────────
 .venv
 venv
+env
+.env.local
+
+# ── ML model weights (downloaded at runtime, not baked in) ────────────────────
+bayora/ml/models/
+bayora/ml/classifiers/*.bin
+bayora/ml/classifiers/*.safetensors
+
+# ── Datasets (large raw JSON files — loaded from volume or object store) ──────
+bayora/datasets/raw/
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+tests/
+**/*_test.py
+**/test_*.py
+
+# ── Infrastructure / deployment specs (not needed inside containers) ──────────
+bayora/infra/
+infra/
+services/orchestrator/
+.code-review-graph/
+
+# ── Documentation ─────────────────────────────────────────────────────────────
+docs/
+*.md
+PLAN.md
+IMPROVEMENTS.md
+WORKSTREAMS.md
+SUMMARY_SKILL.md
+AGENTS.md
+GEMINI.md
+LICENSE
+
+# ── Build artefacts & local scripts ───────────────────────────────────────────
 *.log
-bayora/ml/models
-bayora/datasets
-tests
+*.sh
+deploy.ps1
+run_backend.py
+demo_server.py
+Makefile
+docker-compose*.yml
+.dockerignore
+
+# ── IDE & OS noise ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db

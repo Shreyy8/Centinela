@@ -38,7 +38,8 @@ class TamperEvidentLedger:
                 password=self.db_pass,
                 dbname=self.db_name
             )
-            self.conn.autocommit = True
+            # Task 1.7: Disable autocommit so INSERT runs inside explicit transactions.
+            self.conn.autocommit = False
             
             with self.conn.cursor() as cur:
                 cur.execute("""
@@ -53,6 +54,8 @@ class TamperEvidentLedger:
                         entry_hash VARCHAR(64) NOT NULL
                     );
                 """)
+                self.conn.commit()
+
                 cur.execute("SELECT entry_hash FROM audit_entries ORDER BY id DESC LIMIT 1;")
                 row = cur.fetchone()
                 if row:
@@ -81,6 +84,9 @@ class TamperEvidentLedger:
             entry["entry_hash"] = entry_hash
             
             if self.conn:
+                # Task 1.7: Atomic transaction — _head_hash only advances on successful DB commit.
+                # If the INSERT fails, we ROLLBACK and leave _head_hash unchanged so the chain
+                # remains consistent and re-verifiable from genesis.
                 try:
                     with self.conn.cursor() as cur:
                         cur.execute("""
@@ -88,12 +94,17 @@ class TamperEvidentLedger:
                             (event_type, source_namespace, session_id, payload_hash, timestamp_ns, prev_hash, entry_hash)
                             VALUES (%(event_type)s, %(source_namespace)s, %(session_id)s, %(payload_hash)s, %(timestamp_ns)s, %(prev_hash)s, %(entry_hash)s)
                         """, entry)
+                    self.conn.commit()
+                    # Only advance head hash after successful commit
+                    self._head_hash = entry_hash
                 except Exception as e:
-                    print(f"❌ Failed to persist audit log entry: {e}")
+                    self.conn.rollback()
+                    print(f"❌ Failed to persist audit log entry (rolled back): {e}")
+                    return None
             else:
                 self.chain.append(entry)
+                self._head_hash = entry_hash
                 
-            self._head_hash = entry_hash
             return entry
 
     def verify(self):

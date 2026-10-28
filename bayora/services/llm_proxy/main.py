@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 load_dotenv() # Load from .env file
 
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import Optional
 from cryptography.fernet import Fernet
 from bayora.services.llm_proxy.inference import SandboxedInference
 from bayora.services.llm_proxy.bus import LLMProxyBus
@@ -28,8 +30,22 @@ async def consume_llm_requests():
     try:
         async for msg in consumer:
             headers = dict(msg.headers) if msg.headers else {}
-            session_id = headers.get("session_id", b"").decode()
-            session_key = headers.get("session_key", b"").decode()
+            
+            raw_sid = headers.get("session_id") or headers.get(b"session_id", b"")
+            session_id = raw_sid.decode() if isinstance(raw_sid, bytes) else str(raw_sid)
+
+            # Decrypt session key if encrypted with LLM_KEY (Task 1.6 envelope)
+            session_key = None
+            if "session_key_enc" in headers or b"session_key_enc" in headers:
+                enc_raw = headers.get("session_key_enc") or headers.get(b"session_key_enc")
+                try:
+                    session_key = proxy_bus.llm_fernet.decrypt(enc_raw).decode()
+                except Exception as e:
+                    print(f"❌ Failed to decrypt session_key_enc: {e}")
+            elif "session_key" in headers or b"session_key" in headers:
+                raw_k = headers.get("session_key") or headers.get(b"session_key")
+                session_key = raw_k.decode() if isinstance(raw_k, bytes) else raw_k
+
             encrypted_payload = msg.value
 
             if session_id and session_key:
@@ -43,7 +59,9 @@ async def consume_llm_requests():
                         )
                     print(f"✅ Processed request for session {session_id}")
                 except Exception as e:
-                    print(f"❌ Error processing message: {e}")
+                    print(f"❌ Error processing message for {session_id}: {e}")
+            else:
+                print(f"⚠️ [LLM Proxy] Dropping message: session_id='{session_id}', has_key={bool(session_key)}")
     finally:
         await consumer.stop()
 
@@ -66,12 +84,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# HTTP Fallback/Mock endpoints are kept for the original integration_demo.py fallback
-from pydantic import BaseModel
 class LLMRequest(BaseModel):
     session_id: str
     session_key: str
     encrypted_prompt: str
+
+class APIKeyConfig(BaseModel):
+    api_key: str
+    model_id: Optional[str] = "gemini-1.5-flash"
 
 @app.post("/llm/infer")
 def infer(req: LLMRequest):
@@ -88,3 +108,26 @@ def infer(req: LLMRequest):
 def end_session():
     proxy_bus.handle_session_end()
     return {"status": "memory_cleared"}
+
+@app.post("/llm/config/api-key")
+def configure_api_key(config: APIKeyConfig):
+    """Dynamically set Gemini API key without restarting container."""
+    success = inference_engine.set_api_key(config.api_key, config.model_id)
+    if success:
+        os.environ["GOOGLE_API_KEY"] = config.api_key
+    else:
+        os.environ.pop("GOOGLE_API_KEY", None)
+    return {
+        "status": "configured" if success else "failed",
+        "model": inference_engine.model_id,
+        "active_engine": "gemini" if inference_engine.gemini_model else "simulator"
+    }
+
+@app.get("/llm/status")
+def get_status():
+    return {
+        "engine": "gemini" if inference_engine.gemini_model else ("vllm" if inference_engine.llm_engine else "simulator"),
+        "model_id": inference_engine.model_id,
+        "mock_mode": os.getenv("MOCK_LLM") == "1",
+        "has_api_key": bool(os.getenv("GOOGLE_API_KEY"))
+    }

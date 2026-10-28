@@ -12,6 +12,10 @@ import {
   Shield,
   Layers,
   Clock,
+  Key,
+  Server,
+  Cpu,
+  CheckCircle2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { appRoute } from "@/config/routes";
@@ -176,6 +180,48 @@ function ConfigPage() {
   const [isAddingModel, setIsAddingModel] = React.useState(false);
   const [newModelInput, setNewModelInput] = React.useState("");
 
+  // Target LLM Provider & Key State
+  const [providerMode, setProviderMode] = React.useState<"simulator" | "gemini" | "ollama">("simulator");
+  const [geminiApiKey, setGeminiApiKey] = React.useState("");
+  const [geminiModel, setGeminiModel] = React.useState("gemini-1.5-flash");
+  const [ollamaHost, setOllamaHost] = React.useState("http://localhost:11434");
+  const [ollamaModel, setOllamaModel] = React.useState("llama3");
+  const [isSavingKey, setIsSavingKey] = React.useState(false);
+  const [keySaved, setKeySaved] = React.useState(false);
+  const [showApiKey, setShowApiKey] = React.useState(false);
+
+  // Check existing key on mount
+  React.useEffect(() => {
+    api.get("/config/api-key")
+      .then((res: any) => {
+        if (res?.has_key) {
+          setKeySaved(true);
+          setProviderMode("gemini");
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSaveKey = async () => {
+    if (!geminiApiKey.trim()) return;
+    setIsSavingKey(true);
+    try {
+      // 1. Save in auth-service MongoDB
+      await api.post("/config/api-key", { key: geminiApiKey.trim() });
+      // 2. Configure in llm-proxy container
+      await api.post("/llm/config/api-key", {
+        api_key: geminiApiKey.trim(),
+        model_id: geminiModel,
+      }).catch(() => {});
+      setKeySaved(true);
+      toast.success("Gemini API key verified & saved securely!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save API key");
+    } finally {
+      setIsSavingKey(false);
+    }
+  };
+
   // When scenario changes, update fields
   const handleSelectScenario = (sc: PresetScenario) => {
     setSelectedScenarioId(sc.id);
@@ -223,6 +269,14 @@ function ConfigPage() {
 
       // 2. Launch drill
       try {
+        // Sync active key if gemini mode
+        if (providerMode === "gemini" && geminiApiKey.trim()) {
+          await api.post("/llm/config/api-key", {
+            api_key: geminiApiKey.trim(),
+            model_id: geminiModel,
+          }).catch(() => {});
+        }
+
         const drillResp = await api.post(
           "/drills/run",
           {
@@ -403,6 +457,152 @@ function ConfigPage() {
                   );
                 })}
               </div>
+            </div>
+
+            {/* Target LLM Provider & Inference Credentials */}
+            <div className="space-y-3 rounded-2xl border border-zinc-200/80 bg-zinc-50/50 p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                    Target LLM Engine & API Provider
+                  </span>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Select how adversarial probes are evaluated: zero-token sandbox simulator or direct cloud/local API.
+                  </p>
+                </div>
+
+                {/* Mode Selector Badges */}
+                <div className="inline-flex rounded-full bg-zinc-200/60 p-0.5 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setProviderMode("simulator")}
+                    className={`rounded-full px-3 py-1 text-[11px] transition-all ${
+                      providerMode === "simulator"
+                        ? "bg-white text-zinc-900 shadow-2xs"
+                        : "text-zinc-600 hover:text-zinc-900"
+                    }`}
+                  >
+                    Zero-Cost Sandbox
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProviderMode("gemini")}
+                    className={`rounded-full px-3 py-1 text-[11px] transition-all ${
+                      providerMode === "gemini"
+                        ? "bg-white text-zinc-900 shadow-2xs"
+                        : "text-zinc-600 hover:text-zinc-900"
+                    }`}
+                  >
+                    Google Gemini
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProviderMode("ollama")}
+                    className={`rounded-full px-3 py-1 text-[11px] transition-all ${
+                      providerMode === "ollama"
+                        ? "bg-white text-zinc-900 shadow-2xs"
+                        : "text-zinc-600 hover:text-zinc-900"
+                    }`}
+                  >
+                    Local Ollama
+                  </button>
+                </div>
+              </div>
+
+              {providerMode === "simulator" && (
+                <div className="flex items-center gap-2.5 rounded-xl bg-white border border-zinc-200/70 p-3 text-xs text-zinc-600">
+                  <Shield className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div className="flex-1">
+                    <span className="font-semibold text-zinc-800">Sandboxed Simulation Active</span>
+                    <span className="text-zinc-500 ml-1.5">
+                      — Evaluates jailbreaks, token anomalies, and refusal boundaries instantly with 0 API tokens or GPU requirements.
+                    </span>
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                    Ready
+                  </span>
+                </div>
+              )}
+
+              {providerMode === "gemini" && (
+                <div className="space-y-3 rounded-xl bg-white border border-zinc-200/70 p-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="relative flex-1">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                        <Key className="h-3.5 w-3.5" />
+                      </div>
+                      <input
+                        type={showApiKey ? "text" : "password"}
+                        value={geminiApiKey}
+                        onChange={(e) => setGeminiApiKey(e.target.value)}
+                        placeholder="Paste Google Gemini API Key (e.g. AIzaSy...)"
+                        className="w-full pl-9 pr-16 py-2 text-xs rounded-xl border border-zinc-200 bg-zinc-50/50 text-zinc-900 outline-none focus:border-zinc-800 focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-[10px] text-zinc-400 hover:text-zinc-700 font-medium"
+                      >
+                        {showApiKey ? "Hide" : "Show"}
+                      </button>
+                    </div>
+
+                    <select
+                      value={geminiModel}
+                      onChange={(e) => setGeminiModel(e.target.value)}
+                      className="text-xs rounded-xl border border-zinc-200 bg-zinc-50/50 px-3 py-2 text-zinc-800 outline-none focus:border-zinc-800"
+                    >
+                      <option value="gemini-1.5-flash">gemini-1.5-flash (Fast)</option>
+                      <option value="gemini-1.5-pro">gemini-1.5-pro (Reasoning)</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveKey}
+                      disabled={isSavingKey || !geminiApiKey.trim()}
+                      className="rounded-xl bg-zinc-900 hover:bg-black text-white px-4 py-2 text-xs font-semibold transition-all disabled:opacity-40"
+                    >
+                      {isSavingKey ? "Saving..." : keySaved ? "Update Key" : "Save Key"}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                    <span>
+                      Key is encrypted in memory via Fernet envelope and relayed directly to the isolated LLM proxy.
+                    </span>
+                    {keySaved && (
+                      <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold shrink-0">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Key Stored
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {providerMode === "ollama" && (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-white border border-zinc-200/70 p-3.5">
+                  <div className="relative flex-1">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                      <Server className="h-3.5 w-3.5" />
+                    </div>
+                    <input
+                      type="text"
+                      value={ollamaHost}
+                      onChange={(e) => setOllamaHost(e.target.value)}
+                      placeholder="http://localhost:11434"
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-zinc-200 bg-zinc-50/50 text-zinc-900 outline-none focus:border-zinc-800 focus:bg-white"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={ollamaModel}
+                    onChange={(e) => setOllamaModel(e.target.value)}
+                    placeholder="llama3"
+                    className="w-32 py-2 px-3 text-xs rounded-xl border border-zinc-200 bg-zinc-50/50 text-zinc-900 outline-none focus:border-zinc-800 focus:bg-white"
+                  />
+                  <span className="text-[11px] text-zinc-500">Host port must be open to Docker daemon</span>
+                </div>
+              )}
             </div>
 
             {/* Execution Settings Dropdowns */}

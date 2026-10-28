@@ -24,12 +24,25 @@ spec:
         env:
         - name: KAFKA_BROKER
           value: "bayora-cluster-kafka-bootstrap.kafka.svc:9092"
-        # ❌ REMOVED POSTGRES_HOST: session-manager no longer connects to DB
         envFrom:
         - secretRef:
             name: session-manager-keys
         ports:
         - containerPort: 8000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: session-manager
+  namespace: session-manager
+spec:
+  selector:
+    app: session-manager
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
 
 ---
 # Audit Service (Immutable Ledger)
@@ -115,6 +128,20 @@ spec:
         - containerPort: 8001
 
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blue-team
+  namespace: blue-team
+spec:
+  selector:
+    app: blue-team
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8001
+
+---
 # Red Team Attack Deployment
 apiVersion: apps/v1
 kind: Deployment
@@ -147,7 +174,21 @@ spec:
         - containerPort: 8003
 
 ---
-# LLM Proxy Deployment (Sandbox)
+apiVersion: v1
+kind: Service
+metadata:
+  name: red-team
+  namespace: red-team
+spec:
+  selector:
+    app: red-team
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8003
+
+---
+# LLM Proxy Deployment (Sandbox) — uses runtime-ml image stage (Task 4.1)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -166,7 +207,7 @@ spec:
       runtimeClassName: gvisor-sandboxed
       containers:
       - name: llm-proxy
-        image: bayora/microservices:latest
+        image: bayora/microservices-ml:latest   # ML-heavy image (PyTorch/vLLM/Transformers)
         imagePullPolicy: IfNotPresent
         command: ["uvicorn", "bayora.services.llm_proxy.main:app", "--host", "0.0.0.0", "--port", "8002"]
         env:
@@ -177,6 +218,20 @@ spec:
             name: llm-proxy-keys
         ports:
         - containerPort: 8002
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-proxy
+  namespace: llm-sandbox
+spec:
+  selector:
+    app: llm-proxy
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8002
 
 ---
 # Benchmark Service (Orchestrator & Leaderboard)
@@ -217,3 +272,164 @@ spec:
           value: "http://red-team.red-team.svc.cluster.local:80"
         ports:
         - containerPort: 8006
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: benchmark-service
+  namespace: benchmark
+spec:
+  selector:
+    app: benchmark-service
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8006
+
+---
+# Task 4.2: Auth Service — was missing from apps.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+      - name: auth-service
+        image: bayora/microservices:latest
+        imagePullPolicy: IfNotPresent
+        command: ["uvicorn", "bayora.services.auth_service.main:app", "--host", "0.0.0.0", "--port", "8004"]
+        env:
+        - name: MONGO_URI
+          value: "mongodb://mongodb.auth.svc.cluster.local:27017"
+        envFrom:
+        - secretRef:
+            name: auth-service-keys
+        ports:
+        - containerPort: 8004
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: auth
+spec:
+  selector:
+    app: auth-service
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8004
+
+---
+# Task 4.2: Audit Gateway (WebSocket) — was missing from apps.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-gateway
+  namespace: audit-log
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: audit-gateway
+  template:
+    metadata:
+      labels:
+        app: audit-gateway
+    spec:
+      containers:
+      - name: audit-gateway
+        image: bayora/microservices:latest
+        imagePullPolicy: IfNotPresent
+        command: ["uvicorn", "bayora.services.audit_gateway.main:app", "--host", "0.0.0.0", "--port", "8011"]
+        env:
+        - name: KAFKA_BROKER
+          value: "bayora-cluster-kafka-bootstrap.kafka.svc:9092"
+        envFrom:
+        - secretRef:
+            name: audit-gateway-keys
+        ports:
+        - containerPort: 8011
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-gateway
+  namespace: audit-log
+spec:
+  selector:
+    app: audit-gateway
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8011
+
+---
+# Task 4.2: MongoDB — was missing from apps.yaml (used by auth-service)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:7
+        ports:
+        - containerPort: 27017
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /data/db
+      volumes:
+      - name: mongo-data
+        persistentVolumeClaim:
+          claimName: mongodb-pvc
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-pvc
+  namespace: auth
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: auth
+spec:
+  selector:
+    app: mongodb
+  ports:
+  - protocol: TCP
+    port: 27017
+    targetPort: 27017
