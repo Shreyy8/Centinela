@@ -20,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.14'
+          python-version: '3.11'
           cache: 'pip'
 
       - name: Install Dependencies
@@ -28,6 +28,10 @@ jobs:
 
       - name: Generate Encryption Keys
         run: python bayora/infra/scripts/generate-keys.py
+
+      - name: Lowercase Repository Owner
+        id: repo_owner
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -42,8 +46,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/bayora-microservices:latest
-            ghcr.io/${{ github.repository_owner }}/bayora-microservices:${{ github.sha }}
+            ghcr.io/${{ steps.repo_owner.outputs.owner }}/bayora-microservices:latest
+            ghcr.io/${{ steps.repo_owner.outputs.owner }}/bayora-microservices:${{ github.sha }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -69,7 +73,7 @@ jobs:
       - name: Deploy to Kubernetes
         run: |
           # Replace local image with GHCR versioned image
-          sed -i "s|image: bayora/microservices:latest|image: ghcr.io/${{ github.repository_owner }}/bayora-microservices:${{ github.sha }}|g" bayora/infra/k8s/namespaces/apps.yaml
+          sed -i "s|image: bayora/microservices:latest|image: ghcr.io/${{ steps.repo_owner.outputs.owner }}/bayora-microservices:${{ github.sha }}|g" bayora/infra/k8s/namespaces/apps.yaml
           
           # Install Strimzi Kafka
           kubectl apply -f https://strimzi.io/install/latest?namespace=kafka
